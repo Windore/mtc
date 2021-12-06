@@ -4,12 +4,47 @@
 //! can sync with the mmvk CLI app or serve as an additional interface.
 
 use chrono::prelude::*;
+use sync::ItemState;
+
+pub mod sync {
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub enum ItemState {
+        New,
+        Removed,
+        Neutral,
+    }
+}
+
+struct MmvkList<T: MmvkItem> {
+    items: Vec<T>
+}
+
+impl<T: MmvkItem> MmvkList<T> {
+    fn new() -> MmvkList<T> {
+        MmvkList { items: Vec::new() }
+    }
+
+    fn add(&mut self, item: T) {
+        item.set_state(ItemState::New);
+        self.items.push(item);
+    }
+
+    fn remove(&mut self, id: usize) -> Result<(), &str> {
+        if let Some(item) = self.items.get(id) {
+            item.set_state(ItemState::Removed);
+            Ok(())
+        } else {
+            Err("No item with the given id found")
+        }
+    }
+}
 
 /// A short term task that should be done on a optionally given weekday.
 #[derive(Debug, PartialEq, Clone)]
 pub struct TodoItem {
     weekday: Option<Weekday>,
     body: String,
+    state: ItemState,
 }
 
 /// A repetitive task with a duration in minutes for a optionally given day.
@@ -18,6 +53,7 @@ pub struct Task {
     weekday: Option<Weekday>,
     body: String,
     duration: u32,
+    state: ItemState,
 }
 
 /// An event that will happen on a given date and optionally a time.
@@ -26,12 +62,13 @@ pub struct Event {
     date: NaiveDate,
     time: Option<NaiveTime>,
     body: String,
+    state: ItemState,
 }
 
 impl TodoItem {
     /// Creates a new `TodoItem` with a given body and optionally a weekday.
     pub fn new(body: String, weekday: Option<Weekday>) -> TodoItem {
-        TodoItem { weekday, body }
+        TodoItem { weekday, body, state: ItemState::Neutral }
     }
 
     /// Returns a reference to the body of the `TodoItem`.
@@ -57,6 +94,7 @@ impl Task {
             weekday,
             body,
             duration,
+            state: ItemState::Neutral,
         }
     }
 
@@ -84,7 +122,7 @@ impl Task {
 impl Event {
     /// Creates a new `Event` with a given body, date and optionally a time.
     pub fn new(body: String, date: NaiveDate, time: Option<NaiveTime>) -> Event {
-        Event { body, date, time }
+        Event { body, date, time, state: ItemState::Neutral, }
     }
 
     /// Returns a reference to the body of the `Event`.
@@ -185,6 +223,10 @@ pub trait MmvkItem {
         }
         self.for_date(weekday_date)
     }
+    /// Returns the `ItemState` of the item.
+    fn state(&self) -> ItemState; 
+    /// Sets the `ItemState` of the item.
+    fn set_state(&mut self, state: ItemState);
 }
 
 impl MmvkItem for TodoItem {
