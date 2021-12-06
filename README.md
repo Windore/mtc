@@ -1,6 +1,8 @@
 # MMVK
 
-`mmvk` is an another cli time-management app as enough of those don't exist yet. The main purpose of this app is to serve as simple rust practice for me while also allowing me to sync my todo-lists and events using my home server.
+MMVK is a CLI time management app with the ability to synchronize todo-items, tasks and events via a server using a SSH connection. It also has a public API for writing additional interfaces.
+
+`mmvk` is an yet another time-management app as enough of those don't exist yet. The main purpose of this app is to serve as simple rust practice for me while also allowing me to sync my todo-lists and events using my home server.
 
 ## Installation
 
@@ -16,7 +18,7 @@ Todo-items are quite self-explanatory. They are used for simple one time tasks t
 
 ### Tasks
 
-Tasks are something that one expects to do every week on a specific weekday. They have a duration and you can use `mmvk do` to have a timer for that duration. Tasks can also exist without a weekday specified.
+Tasks are something that one expects to do every week on a specific weekday. They have a duration in minutes and you can use `mmvk do` to have a timer for that duration. Tasks can also exist without a weekday specified.
 
 ### Events
 
