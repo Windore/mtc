@@ -6,6 +6,85 @@
 use chrono::prelude::*;
 use sync::ItemState;
 
+/// A General trait for sharing a implementation between TodoItems, Tasks and Events.
+pub trait MmvkItem {
+    /// Returns true if the item is for a given date.
+    ///
+    /// # Example
+    /// ```
+    /// use chrono::prelude::*;
+    /// use mmvk::MmvkItem;
+    ///
+    /// struct WeekdayItem {
+    ///     weekday: Weekday,
+    /// }
+    ///
+    /// impl MmvkItem for WeekdayItem {
+    ///     fn for_date(&self, date: NaiveDate) -> bool {
+    ///         self.weekday == date.weekday()
+    ///     }
+    /// }
+    ///
+    /// assert!(WeekdayItem { weekday: Weekday::Mon }.for_date(NaiveDate::from_ymd(2021, 12, 6)));
+    /// assert!(!WeekdayItem { weekday: Weekday::Mon }.for_date(NaiveDate::from_ymd(2021, 12, 5)));
+    /// ```
+    fn for_date(&self, date: NaiveDate) -> bool;
+    /// Returns true if the item is for today.
+    ///
+    /// # Example
+    /// ```
+    /// use chrono::prelude::*;
+    /// use mmvk::MmvkItem;
+    ///
+    /// struct WeekdayItem {
+    ///     weekday: Weekday,
+    /// }
+    ///
+    /// impl MmvkItem for WeekdayItem {
+    ///     fn for_date(&self, date: NaiveDate) -> bool {
+    ///         self.weekday == date.weekday()
+    ///     }
+    /// }
+    ///
+    /// assert!(WeekdayItem { weekday: Local::today().weekday() }.for_today());
+    /// ```
+    fn for_today(&self) -> bool {
+        self.for_date(Local::today().naive_local())
+    }
+    /// Returns true if the item is for a given weekday.
+    ///
+    /// # Example
+    /// ```
+    /// use chrono::prelude::*;
+    /// use mmvk::MmvkItem;
+    ///
+    /// struct WeekdayItem {
+    ///     weekday: Weekday,
+    /// }
+    ///
+    /// impl MmvkItem for WeekdayItem {
+    ///     fn for_date(&self, date: NaiveDate) -> bool {
+    ///         self.weekday == date.weekday()
+    ///     }
+    /// }
+    ///
+    /// assert!(WeekdayItem { weekday: Weekday::Fri }.for_weekday(Weekday::Fri));
+    /// assert!(!WeekdayItem { weekday: Weekday::Fri }.for_weekday(Weekday::Mon));
+    /// ```
+    fn for_weekday(&self, weekday: Weekday) -> bool {
+        let mut weekday_date = Local::today().naive_local();
+        while weekday_date.weekday() != weekday {
+            weekday_date = weekday_date.succ();
+        }
+        self.for_date(weekday_date)
+    }
+    /// Returns the `ItemState` of the item.
+    fn state(&self) -> ItemState;
+    /// Sets the `ItemState` of the item.
+    fn set_state(&mut self, state: ItemState);
+    fn ignore_state_eq(&self, other: &Self) -> bool;
+}
+
 pub mod sync {
     use super::*;
 
@@ -17,12 +96,12 @@ pub mod sync {
     }
 
     #[derive(Debug, PartialEq, Clone)]
-    pub struct MmvkList<T: MmvkItem> {
+    pub struct MmvkList<T: MmvkItem + PartialEq + Clone> {
         items: Vec<T>,
         is_server: bool,
     }
 
-    impl<T: MmvkItem> MmvkList<T> {
+    impl<T: MmvkItem + PartialEq + Clone> MmvkList<T> {
         pub fn new(is_server: bool) -> MmvkList<T> {
             MmvkList {
                 items: Vec::new(),
@@ -31,13 +110,22 @@ pub mod sync {
         }
 
         pub fn add(&mut self, mut item: T) {
-            item.set_state(ItemState::New);
+            if self.is_server {
+                item.set_state(ItemState::Neutral);
+            } else {
+                item.set_state(ItemState::New);
+            }
             self.items.push(item);
         }
 
         pub fn mark_removed(&mut self, id: usize) -> Result<(), &str> {
             if let Some(item) = self.items.get_mut(id) {
-                item.set_state(ItemState::Removed);
+                if !self.is_server {
+                    item.set_state(ItemState::Removed);
+                } else {
+                    drop(item);
+                    self.items.remove(id);
+                }
                 Ok(())
             } else {
                 Err("No item with the given id found")
@@ -60,14 +148,85 @@ pub mod sync {
             mmvk_items_weekday(&self.items, weekday)
         }
 
-        pub fn sync_self(&mut self) {}
+        pub fn sync_self(&mut self) {
+            let mut removed = Vec::new();
+
+            for (i, item) in self.items.iter_mut().enumerate() {
+                if item.state() == ItemState::Removed {
+                    removed.push(i);
+                } else {
+                    item.set_state(ItemState::Neutral);
+                }
+            }
+
+            removed.sort();
+            while let Some(r) = removed.pop() {
+                self.items.remove(r);
+            }
+        }
 
         /// Synchronizes this MmvkList with the other MmvkList.
         /// Either one of these lists is expected to be a server and the other a client.
         /// Removes items that are marked for removal.
         /// # Panics
         /// If neither one of the lists is a server or if both are servers.
-        pub fn sync(&mut self, other: &mut MmvkList<T>) {}
+        pub fn sync(&mut self, other: &mut MmvkList<T>) {
+            if self.is_server && other.is_server {
+                panic!("Both self and other are servers.");
+            } else if !self.is_server && !other.is_server {
+                panic!("Neither self or other is a server.");
+            }
+
+            let server_list;
+            let client_list;
+            if self.is_server {
+                server_list = self;
+                client_list = other
+            } else {
+                server_list = other;
+                client_list = self;
+            }
+
+            for item in client_list.items.iter_mut() {
+                match item.state() {
+                    ItemState::Removed => {
+                        for elem in server_list.items.iter_mut() {
+                            if elem.ignore_state_eq(item) && elem.state() != ItemState::Removed {
+                                elem.set_state(ItemState::Removed);
+                                break;
+                            }
+                        }
+                    }
+                    ItemState::New => {
+                        server_list.add(item.clone());
+                    }
+                    ItemState::Neutral => {
+                        if server_list
+                            .items
+                            .iter()
+                            .position(|elem| elem.ignore_state_eq(item))
+                            .is_none()
+                        {
+                            item.set_state(ItemState::Removed);
+                        }
+                    }
+                };
+            }
+
+            for item in server_list.items.iter() {
+                if item.state() != ItemState::Removed && client_list
+                    .items
+                    .iter()
+                    .position(|elem| elem.ignore_state_eq(item) && elem.state() != ItemState::Removed)
+                    .is_none()
+                {
+                    client_list.add(item.clone());
+                }
+            }
+
+            client_list.sync_self();
+            server_list.sync_self();
+        }
     }
 }
 
@@ -192,84 +351,6 @@ impl Event {
     }
 }
 
-/// A General trait for sharing a implementation between TodoItems, Tasks and Events.
-pub trait MmvkItem {
-    /// Returns true if the item is for a given date.
-    ///
-    /// # Example
-    /// ```
-    /// use chrono::prelude::*;
-    /// use mmvk::MmvkItem;
-    ///
-    /// struct WeekdayItem {
-    ///     weekday: Weekday,
-    /// }
-    ///
-    /// impl MmvkItem for WeekdayItem {
-    ///     fn for_date(&self, date: NaiveDate) -> bool {
-    ///         self.weekday == date.weekday()
-    ///     }
-    /// }
-    ///
-    /// assert!(WeekdayItem { weekday: Weekday::Mon }.for_date(NaiveDate::from_ymd(2021, 12, 6)));
-    /// assert!(!WeekdayItem { weekday: Weekday::Mon }.for_date(NaiveDate::from_ymd(2021, 12, 5)));
-    /// ```
-    fn for_date(&self, date: NaiveDate) -> bool;
-    /// Returns true if the item is for today.
-    ///
-    /// # Example
-    /// ```
-    /// use chrono::prelude::*;
-    /// use mmvk::MmvkItem;
-    ///
-    /// struct WeekdayItem {
-    ///     weekday: Weekday,
-    /// }
-    ///
-    /// impl MmvkItem for WeekdayItem {
-    ///     fn for_date(&self, date: NaiveDate) -> bool {
-    ///         self.weekday == date.weekday()
-    ///     }
-    /// }
-    ///
-    /// assert!(WeekdayItem { weekday: Local::today().weekday() }.for_today());
-    /// ```
-    fn for_today(&self) -> bool {
-        self.for_date(Local::today().naive_local())
-    }
-    /// Returns true if the item is for a given weekday.
-    ///
-    /// # Example
-    /// ```
-    /// use chrono::prelude::*;
-    /// use mmvk::MmvkItem;
-    ///
-    /// struct WeekdayItem {
-    ///     weekday: Weekday,
-    /// }
-    ///
-    /// impl MmvkItem for WeekdayItem {
-    ///     fn for_date(&self, date: NaiveDate) -> bool {
-    ///         self.weekday == date.weekday()
-    ///     }
-    /// }
-    ///
-    /// assert!(WeekdayItem { weekday: Weekday::Fri }.for_weekday(Weekday::Fri));
-    /// assert!(!WeekdayItem { weekday: Weekday::Fri }.for_weekday(Weekday::Mon));
-    /// ```
-    fn for_weekday(&self, weekday: Weekday) -> bool {
-        let mut weekday_date = Local::today().naive_local();
-        while weekday_date.weekday() != weekday {
-            weekday_date = weekday_date.succ();
-        }
-        self.for_date(weekday_date)
-    }
-    /// Returns the `ItemState` of the item.
-    fn state(&self) -> ItemState;
-    /// Sets the `ItemState` of the item.
-    fn set_state(&mut self, state: ItemState);
-}
-
 impl MmvkItem for TodoItem {
     /// Returns true if the `TodoItem` is for a given date.
     ///
@@ -295,6 +376,9 @@ impl MmvkItem for TodoItem {
         todo!()
     }
     fn set_state(&mut self, _: sync::ItemState) {
+        todo!()
+    }
+    fn ignore_state_eq(&self, _: &TodoItem) -> bool {
         todo!()
     }
 }
@@ -326,6 +410,9 @@ impl MmvkItem for Task {
     fn set_state(&mut self, _: sync::ItemState) {
         todo!()
     }
+    fn ignore_state_eq(&self, _: &Task) -> bool {
+        todo!()
+    }
 }
 
 impl MmvkItem for Event {
@@ -349,6 +436,9 @@ impl MmvkItem for Event {
         todo!()
     }
     fn set_state(&mut self, _: sync::ItemState) {
+        todo!()
+    }
+    fn ignore_state_eq(&self, _: &Self) -> bool {
         todo!()
     }
 }
@@ -546,6 +636,9 @@ mod tests {
             fn set_state(&mut self, _: sync::ItemState) {
                 todo!()
             }
+            fn ignore_state_eq(&self, _: &Self) -> bool {
+                todo!()
+            }
         }
 
         let item = TestItem {};
@@ -564,6 +657,9 @@ mod tests {
                 todo!()
             }
             fn set_state(&mut self, _: sync::ItemState) {
+                todo!()
+            }
+            fn ignore_state_eq(&self, _: &Self) -> bool {
                 todo!()
             }
         }
@@ -586,6 +682,9 @@ mod tests {
             fn set_state(&mut self, _: sync::ItemState) {
                 todo!()
             }
+            fn ignore_state_eq(&self, _: &Self) -> bool {
+                todo!()
+            }
         }
 
         let item = TestItem {};
@@ -604,6 +703,9 @@ mod tests {
                 todo!()
             }
             fn set_state(&mut self, _: sync::ItemState) {
+                todo!()
+            }
+            fn ignore_state_eq(&self, _: &Self) -> bool {
                 todo!()
             }
         }
@@ -724,6 +826,20 @@ mod tests {
             body: String,
         }
 
+        impl Ord for TestMmvkItem {
+            fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+                self.body.cmp(&other.body)
+            }
+        }
+
+        impl PartialOrd for TestMmvkItem {
+            fn partial_cmp(&self, other: &Self) -> std::option::Option<std::cmp::Ordering> {
+                Some(self.body.cmp(&other.body))
+            }
+        }
+
+        impl Eq for TestMmvkItem {}
+
         impl TestMmvkItem {
             fn new(body: String) -> TestMmvkItem {
                 TestMmvkItem {
@@ -742,6 +858,9 @@ mod tests {
             }
             fn set_state(&mut self, state: sync::ItemState) {
                 self.state = state;
+            }
+            fn ignore_state_eq(&self, other: &Self) -> bool {
+                self.body == other.body
             }
         }
 
@@ -762,7 +881,10 @@ mod tests {
                 x.set_state(ItemState::Neutral);
             });
 
-            assert_eq!(list.items().to_owned(), exp);
+            let mut sorted = list.items().to_owned();
+            sorted.sort();
+
+            assert_eq!(sorted, exp);
         }
 
         #[test]
@@ -789,7 +911,10 @@ mod tests {
                 x.set_state(ItemState::Neutral);
             });
 
-            assert_eq!(list.items().to_owned(), exp);
+            let mut sorted = list.items().to_owned();
+            sorted.sort();
+
+            assert_eq!(sorted, exp);
         }
 
         #[test]
@@ -801,6 +926,8 @@ mod tests {
             client_list.add(TestMmvkItem::new("Item 1".to_string()));
             client_list.add(TestMmvkItem::new("Item 2".to_string()));
 
+            client_list.sync_self();
+
             client_list.mark_removed(1).unwrap();
             client_list.mark_removed(2).unwrap();
 
@@ -814,8 +941,15 @@ mod tests {
                 x.set_state(ItemState::Neutral);
             });
 
-            assert_eq!(client_list.items().to_owned(), exp);
-            assert_eq!(server_list.items().to_owned(), exp);
+            let mut sorted = client_list.items().to_owned();
+            sorted.sort();
+
+            assert_eq!(sorted, exp);
+            
+            let mut sorted = server_list.items().to_owned();
+            sorted.sort();
+
+            assert_eq!(sorted, exp);
         }
 
         #[test]
@@ -826,13 +960,15 @@ mod tests {
             client_list.add(TestMmvkItem::new("Item 0".to_string()));
             client_list.add(TestMmvkItem::new("Item 1".to_string()));
 
+            client_list.sync_self();
+
             client_list.mark_removed(1).unwrap();
 
             server_list.add(TestMmvkItem::new("Item 0".to_string()));
             server_list.add(TestMmvkItem::new("Item 1".to_string()));
             server_list.add(TestMmvkItem::new("Item 1".to_string()));
 
-            client_list.sync(&mut server_list);
+            server_list.sync(&mut client_list);
 
             let mut exp: Vec<TestMmvkItem> = vec![
                 TestMmvkItem::new("Item 0".to_string()),
@@ -842,8 +978,15 @@ mod tests {
                 x.set_state(ItemState::Neutral);
             });
 
-            assert_eq!(client_list.items().to_owned(), exp);
-            assert_eq!(server_list.items().to_owned(), exp);
+            let mut sorted = client_list.items().to_owned();
+            sorted.sort();
+
+            assert_eq!(sorted, exp);
+            
+            let mut sorted = server_list.items().to_owned();
+            sorted.sort();
+
+            assert_eq!(sorted, exp);
         }
 
         #[test]
@@ -852,6 +995,9 @@ mod tests {
             let mut server_list = MmvkList::new(true);
 
             client_list.add(TestMmvkItem::new("Item 0".to_string()));
+
+            client_list.sync_self();
+
             client_list.add(TestMmvkItem::new("Item 1".to_string()));
             client_list.add(TestMmvkItem::new("Item 1".to_string()));
 
@@ -869,8 +1015,15 @@ mod tests {
                 x.set_state(ItemState::Neutral);
             });
 
-            assert_eq!(client_list.items().to_owned(), exp);
-            assert_eq!(server_list.items().to_owned(), exp);
+            let mut sorted = client_list.items().to_owned();
+            sorted.sort();
+
+            assert_eq!(sorted, exp);
+            
+            let mut sorted = server_list.items().to_owned();
+            sorted.sort();
+
+            assert_eq!(sorted, exp);
         }
 
         #[test]
@@ -880,22 +1033,28 @@ mod tests {
 
             client_list.add(TestMmvkItem::new("Item 0".to_string()));
             client_list.add(TestMmvkItem::new("Item 1".to_string()));
+            client_list.add(TestMmvkItem::new("Item 2".to_string()));
 
             client_list.sync_self(); // Set items to neutral
 
-            client_list.add(TestMmvkItem::new("Item 2".to_string()));
-
             server_list.add(TestMmvkItem::new("Item 2".to_string()));
 
-            client_list.sync(&mut server_list);
+            server_list.sync(&mut client_list);
 
             let mut exp: Vec<TestMmvkItem> = vec![TestMmvkItem::new("Item 2".to_string())];
             exp.iter_mut().for_each(|x| {
                 x.set_state(ItemState::Neutral);
             });
 
-            assert_eq!(client_list.items().to_owned(), exp);
-            assert_eq!(server_list.items().to_owned(), exp);
+            let mut sorted = client_list.items().to_owned();
+            sorted.sort();
+
+            assert_eq!(sorted, exp);
+            
+            let mut sorted = server_list.items().to_owned();
+            sorted.sort();
+
+            assert_eq!(sorted, exp);
         }
 
         #[test]
@@ -904,10 +1063,13 @@ mod tests {
             let mut server_list = MmvkList::new(true);
 
             client_list.add(TestMmvkItem::new("Item 0".to_string()));
+
+            client_list.sync_self();
+
             client_list.add(TestMmvkItem::new("Item 1".to_string()));
             client_list.add(TestMmvkItem::new("Item 2".to_string()));
 
-            server_list.add(TestMmvkItem::new("Item 2".to_string()));
+            server_list.add(TestMmvkItem::new("Item 0".to_string()));
 
             client_list.sync(&mut server_list);
 
@@ -920,8 +1082,15 @@ mod tests {
                 x.set_state(ItemState::Neutral);
             });
 
-            assert_eq!(client_list.items().to_owned(), exp);
-            assert_eq!(server_list.items().to_owned(), exp);
+            let mut sorted = client_list.items().to_owned();
+            sorted.sort();
+
+            assert_eq!(sorted, exp);
+            
+            let mut sorted = server_list.items().to_owned();
+            sorted.sort();
+
+            assert_eq!(sorted, exp);
         }
 
         #[test]
@@ -930,6 +1099,8 @@ mod tests {
             let mut server_list = MmvkList::new(true);
 
             client_list.add(TestMmvkItem::new("Item 0".to_string()));
+
+            client_list.sync_self();
 
             server_list.add(TestMmvkItem::new("Item 0".to_string()));
             server_list.add(TestMmvkItem::new("Item 1".to_string()));
@@ -946,8 +1117,15 @@ mod tests {
                 x.set_state(ItemState::Neutral);
             });
 
-            assert_eq!(client_list.items().to_owned(), exp);
-            assert_eq!(server_list.items().to_owned(), exp);
+            let mut sorted = client_list.items().to_owned();
+            sorted.sort();
+
+            assert_eq!(sorted, exp);
+            
+            let mut sorted = server_list.items().to_owned();
+            sorted.sort();
+
+            assert_eq!(sorted, exp);
         }
 
         #[test]
@@ -980,8 +1158,15 @@ mod tests {
                 x.set_state(ItemState::Neutral);
             });
 
-            assert_eq!(client_list.items().to_owned(), exp);
-            assert_eq!(server_list.items().to_owned(), exp);
+            let mut sorted = client_list.items().to_owned();
+            sorted.sort();
+
+            assert_eq!(sorted, exp);
+            
+            let mut sorted = server_list.items().to_owned();
+            sorted.sort();
+
+            assert_eq!(sorted, exp);
         }
 
         #[test]
