@@ -7,35 +7,67 @@ use chrono::prelude::*;
 use sync::ItemState;
 
 pub mod sync {
+    use super::*;
+
     #[derive(Debug, PartialEq, Clone, Copy)]
     pub enum ItemState {
         New,
         Removed,
         Neutral,
     }
-}
 
-struct MmvkList<T: MmvkItem> {
-    items: Vec<T>
-}
-
-impl<T: MmvkItem> MmvkList<T> {
-    fn new() -> MmvkList<T> {
-        MmvkList { items: Vec::new() }
+    #[derive(Debug, PartialEq, Clone)]
+    pub struct MmvkList<T: MmvkItem> {
+        items: Vec<T>,
+        is_server: bool,
     }
 
-    fn add(&mut self, item: T) {
-        item.set_state(ItemState::New);
-        self.items.push(item);
-    }
-
-    fn remove(&mut self, id: usize) -> Result<(), &str> {
-        if let Some(item) = self.items.get(id) {
-            item.set_state(ItemState::Removed);
-            Ok(())
-        } else {
-            Err("No item with the given id found")
+    impl<T: MmvkItem> MmvkList<T> {
+        pub fn new(is_server: bool) -> MmvkList<T> {
+            MmvkList {
+                items: Vec::new(),
+                is_server,
+            }
         }
+
+        pub fn add(&mut self, mut item: T) {
+            item.set_state(ItemState::New);
+            self.items.push(item);
+        }
+
+        pub fn mark_removed(&mut self, id: usize) -> Result<(), &str> {
+            if let Some(item) = self.items.get_mut(id) {
+                item.set_state(ItemState::Removed);
+                Ok(())
+            } else {
+                Err("No item with the given id found")
+            }
+        }
+
+        pub fn items(&self) -> &Vec<T> {
+            &self.items
+        }
+
+        pub fn items_for_date(&self, date: NaiveDate) -> Vec<&T> {
+            mmvk_items_date(&self.items, date)
+        }
+
+        pub fn items_for_today(&self) -> Vec<&T> {
+            mmvk_items_today(&self.items)
+        }
+
+        pub fn items_for_weekday(&self, weekday: Weekday) -> Vec<&T> {
+            mmvk_items_weekday(&self.items, weekday)
+        }
+
+        pub fn sync_self(&mut self) {}
+
+        /// Synchronizes this MmvkList with the other MmvkList.
+        /// Either one of these lists is expected to be a server and the other a client.
+        /// Removes items that are marked for removal.
+        /// # Panics
+        /// If neither one of the lists is a server or if both are servers.
+        pub fn sync(&mut self, other: &mut MmvkList<T>) {}
     }
 }
 
@@ -68,7 +100,11 @@ pub struct Event {
 impl TodoItem {
     /// Creates a new `TodoItem` with a given body and optionally a weekday.
     pub fn new(body: String, weekday: Option<Weekday>) -> TodoItem {
-        TodoItem { weekday, body, state: ItemState::Neutral }
+        TodoItem {
+            weekday,
+            body,
+            state: ItemState::Neutral,
+        }
     }
 
     /// Returns a reference to the body of the `TodoItem`.
@@ -122,7 +158,12 @@ impl Task {
 impl Event {
     /// Creates a new `Event` with a given body, date and optionally a time.
     pub fn new(body: String, date: NaiveDate, time: Option<NaiveTime>) -> Event {
-        Event { body, date, time, state: ItemState::Neutral, }
+        Event {
+            body,
+            date,
+            time,
+            state: ItemState::Neutral,
+        }
     }
 
     /// Returns a reference to the body of the `Event`.
@@ -224,7 +265,7 @@ pub trait MmvkItem {
         self.for_date(weekday_date)
     }
     /// Returns the `ItemState` of the item.
-    fn state(&self) -> ItemState; 
+    fn state(&self) -> ItemState;
     /// Sets the `ItemState` of the item.
     fn set_state(&mut self, state: ItemState);
 }
@@ -250,6 +291,12 @@ impl MmvkItem for TodoItem {
             None => true,
         }
     }
+    fn state(&self) -> sync::ItemState {
+        todo!()
+    }
+    fn set_state(&mut self, _: sync::ItemState) {
+        todo!()
+    }
 }
 
 impl MmvkItem for Task {
@@ -273,6 +320,12 @@ impl MmvkItem for Task {
             None => true,
         }
     }
+    fn state(&self) -> sync::ItemState {
+        todo!()
+    }
+    fn set_state(&mut self, _: sync::ItemState) {
+        todo!()
+    }
 }
 
 impl MmvkItem for Event {
@@ -291,6 +344,12 @@ impl MmvkItem for Event {
     /// ```
     fn for_date(&self, date: NaiveDate) -> bool {
         self.date == date
+    }
+    fn state(&self) -> sync::ItemState {
+        todo!()
+    }
+    fn set_state(&mut self, _: sync::ItemState) {
+        todo!()
     }
 }
 
@@ -481,6 +540,12 @@ mod tests {
             fn for_date(&self, date: NaiveDate) -> bool {
                 date == Local::today().naive_local()
             }
+            fn state(&self) -> sync::ItemState {
+                todo!()
+            }
+            fn set_state(&mut self, _: sync::ItemState) {
+                todo!()
+            }
         }
 
         let item = TestItem {};
@@ -495,6 +560,12 @@ mod tests {
             fn for_date(&self, date: NaiveDate) -> bool {
                 date != Local::today().naive_local()
             }
+            fn state(&self) -> sync::ItemState {
+                todo!()
+            }
+            fn set_state(&mut self, _: sync::ItemState) {
+                todo!()
+            }
         }
 
         let item = TestItem {};
@@ -507,7 +578,13 @@ mod tests {
         struct TestItem {}
         impl MmvkItem for TestItem {
             fn for_date(&self, date: NaiveDate) -> bool {
-                date == NaiveDate::from_ymd(2021, 12, 6)
+                date.weekday() == Weekday::Mon
+            }
+            fn state(&self) -> sync::ItemState {
+                todo!()
+            }
+            fn set_state(&mut self, _: sync::ItemState) {
+                todo!()
             }
         }
 
@@ -522,6 +599,12 @@ mod tests {
         impl MmvkItem for TestItem {
             fn for_date(&self, date: NaiveDate) -> bool {
                 date == NaiveDate::from_ymd(2021, 12, 6)
+            }
+            fn state(&self) -> sync::ItemState {
+                todo!()
+            }
+            fn set_state(&mut self, _: sync::ItemState) {
+                todo!()
             }
         }
 
@@ -629,5 +712,294 @@ mod tests {
             .collect();
 
         assert_eq!(result, expected);
+    }
+
+    mod mmvk_list_tests {
+        use super::*;
+        use crate::sync::*;
+
+        #[derive(Debug, PartialEq, Clone)]
+        struct TestMmvkItem {
+            state: ItemState,
+            body: String,
+        }
+
+        impl TestMmvkItem {
+            fn new(body: String) -> TestMmvkItem {
+                TestMmvkItem {
+                    state: ItemState::Neutral,
+                    body,
+                }
+            }
+        }
+
+        impl MmvkItem for TestMmvkItem {
+            fn for_date(&self, _: chrono::NaiveDate) -> bool {
+                todo!()
+            }
+            fn state(&self) -> sync::ItemState {
+                self.state
+            }
+            fn set_state(&mut self, state: sync::ItemState) {
+                self.state = state;
+            }
+        }
+
+        #[test]
+        fn mmvk_list_server_all_neutral() {
+            let mut list = MmvkList::new(true);
+
+            list.add(TestMmvkItem::new("Item 0".to_string()));
+            list.add(TestMmvkItem::new("Item 1".to_string()));
+            list.add(TestMmvkItem::new("Item 2".to_string()));
+
+            let mut exp: Vec<TestMmvkItem> = vec![
+                TestMmvkItem::new("Item 0".to_string()),
+                TestMmvkItem::new("Item 1".to_string()),
+                TestMmvkItem::new("Item 2".to_string()),
+            ];
+            exp.iter_mut().for_each(|x| {
+                x.set_state(ItemState::Neutral);
+            });
+
+            assert_eq!(list.items().to_owned(), exp);
+        }
+
+        #[test]
+        fn mmvk_list_self_sync_removes_marked_and_sets_new_neutral() {
+            let mut list = MmvkList::new(false);
+
+            list.add(TestMmvkItem::new("Item 0".to_string()));
+            list.add(TestMmvkItem::new("Item 1".to_string()));
+            list.add(TestMmvkItem::new("Item 2".to_string()));
+            list.add(TestMmvkItem::new("Item 3".to_string()));
+            list.add(TestMmvkItem::new("Item 4".to_string()));
+
+            list.mark_removed(1).unwrap();
+            list.mark_removed(2).unwrap();
+
+            list.sync_self();
+
+            let mut exp: Vec<TestMmvkItem> = vec![
+                TestMmvkItem::new("Item 0".to_string()),
+                TestMmvkItem::new("Item 3".to_string()),
+                TestMmvkItem::new("Item 4".to_string()),
+            ];
+            exp.iter_mut().for_each(|x| {
+                x.set_state(ItemState::Neutral);
+            });
+
+            assert_eq!(list.items().to_owned(), exp);
+        }
+
+        #[test]
+        fn mmvk_list_sync_removes_marked_from_server() {
+            let mut client_list = MmvkList::new(false);
+            let mut server_list = MmvkList::new(true);
+
+            client_list.add(TestMmvkItem::new("Item 0".to_string()));
+            client_list.add(TestMmvkItem::new("Item 1".to_string()));
+            client_list.add(TestMmvkItem::new("Item 2".to_string()));
+
+            client_list.mark_removed(1).unwrap();
+            client_list.mark_removed(2).unwrap();
+
+            server_list.add(TestMmvkItem::new("Item 0".to_string()));
+            server_list.add(TestMmvkItem::new("Item 1".to_string()));
+
+            client_list.sync(&mut server_list);
+
+            let mut exp: Vec<TestMmvkItem> = vec![TestMmvkItem::new("Item 0".to_string())];
+            exp.iter_mut().for_each(|x| {
+                x.set_state(ItemState::Neutral);
+            });
+
+            assert_eq!(client_list.items().to_owned(), exp);
+            assert_eq!(server_list.items().to_owned(), exp);
+        }
+
+        #[test]
+        fn mmvk_list_sync_removes_marked_from_server_only_once() {
+            let mut client_list = MmvkList::new(false);
+            let mut server_list = MmvkList::new(true);
+
+            client_list.add(TestMmvkItem::new("Item 0".to_string()));
+            client_list.add(TestMmvkItem::new("Item 1".to_string()));
+
+            client_list.mark_removed(1).unwrap();
+
+            server_list.add(TestMmvkItem::new("Item 0".to_string()));
+            server_list.add(TestMmvkItem::new("Item 1".to_string()));
+            server_list.add(TestMmvkItem::new("Item 1".to_string()));
+
+            client_list.sync(&mut server_list);
+
+            let mut exp: Vec<TestMmvkItem> = vec![
+                TestMmvkItem::new("Item 0".to_string()),
+                TestMmvkItem::new("Item 1".to_string()),
+            ];
+            exp.iter_mut().for_each(|x| {
+                x.set_state(ItemState::Neutral);
+            });
+
+            assert_eq!(client_list.items().to_owned(), exp);
+            assert_eq!(server_list.items().to_owned(), exp);
+        }
+
+        #[test]
+        fn mmvk_list_sync_removes_marked_from_server_equal_times() {
+            let mut client_list = MmvkList::new(false);
+            let mut server_list = MmvkList::new(true);
+
+            client_list.add(TestMmvkItem::new("Item 0".to_string()));
+            client_list.add(TestMmvkItem::new("Item 1".to_string()));
+            client_list.add(TestMmvkItem::new("Item 1".to_string()));
+
+            client_list.mark_removed(1).unwrap();
+            client_list.mark_removed(2).unwrap();
+
+            server_list.add(TestMmvkItem::new("Item 0".to_string()));
+            server_list.add(TestMmvkItem::new("Item 1".to_string()));
+            server_list.add(TestMmvkItem::new("Item 1".to_string()));
+
+            client_list.sync(&mut server_list);
+
+            let mut exp: Vec<TestMmvkItem> = vec![TestMmvkItem::new("Item 0".to_string())];
+            exp.iter_mut().for_each(|x| {
+                x.set_state(ItemState::Neutral);
+            });
+
+            assert_eq!(client_list.items().to_owned(), exp);
+            assert_eq!(server_list.items().to_owned(), exp);
+        }
+
+        #[test]
+        fn mmvk_list_sync_removes_nonnew_from_client() {
+            let mut client_list = MmvkList::new(false);
+            let mut server_list = MmvkList::new(true);
+
+            client_list.add(TestMmvkItem::new("Item 0".to_string()));
+            client_list.add(TestMmvkItem::new("Item 1".to_string()));
+
+            client_list.sync_self(); // Set items to neutral
+
+            client_list.add(TestMmvkItem::new("Item 2".to_string()));
+
+            server_list.add(TestMmvkItem::new("Item 2".to_string()));
+
+            client_list.sync(&mut server_list);
+
+            let mut exp: Vec<TestMmvkItem> = vec![TestMmvkItem::new("Item 2".to_string())];
+            exp.iter_mut().for_each(|x| {
+                x.set_state(ItemState::Neutral);
+            });
+
+            assert_eq!(client_list.items().to_owned(), exp);
+            assert_eq!(server_list.items().to_owned(), exp);
+        }
+
+        #[test]
+        fn mmvk_list_sync_adds_new_from_client() {
+            let mut client_list = MmvkList::new(false);
+            let mut server_list = MmvkList::new(true);
+
+            client_list.add(TestMmvkItem::new("Item 0".to_string()));
+            client_list.add(TestMmvkItem::new("Item 1".to_string()));
+            client_list.add(TestMmvkItem::new("Item 2".to_string()));
+
+            server_list.add(TestMmvkItem::new("Item 2".to_string()));
+
+            client_list.sync(&mut server_list);
+
+            let mut exp: Vec<TestMmvkItem> = vec![
+                TestMmvkItem::new("Item 0".to_string()),
+                TestMmvkItem::new("Item 1".to_string()),
+                TestMmvkItem::new("Item 2".to_string()),
+            ];
+            exp.iter_mut().for_each(|x| {
+                x.set_state(ItemState::Neutral);
+            });
+
+            assert_eq!(client_list.items().to_owned(), exp);
+            assert_eq!(server_list.items().to_owned(), exp);
+        }
+
+        #[test]
+        fn mmvk_list_sync_adds_new_from_server() {
+            let mut client_list = MmvkList::new(false);
+            let mut server_list = MmvkList::new(true);
+
+            client_list.add(TestMmvkItem::new("Item 0".to_string()));
+
+            server_list.add(TestMmvkItem::new("Item 0".to_string()));
+            server_list.add(TestMmvkItem::new("Item 1".to_string()));
+            server_list.add(TestMmvkItem::new("Item 2".to_string()));
+
+            client_list.sync(&mut server_list);
+
+            let mut exp: Vec<TestMmvkItem> = vec![
+                TestMmvkItem::new("Item 0".to_string()),
+                TestMmvkItem::new("Item 1".to_string()),
+                TestMmvkItem::new("Item 2".to_string()),
+            ];
+            exp.iter_mut().for_each(|x| {
+                x.set_state(ItemState::Neutral);
+            });
+
+            assert_eq!(client_list.items().to_owned(), exp);
+            assert_eq!(server_list.items().to_owned(), exp);
+        }
+
+        #[test]
+        fn mmvk_list_sync_combines_correctly() {
+            let mut client_list = MmvkList::new(false);
+            let mut server_list = MmvkList::new(true);
+
+            client_list.add(TestMmvkItem::new("Item 0".to_string()));
+            client_list.add(TestMmvkItem::new("Item 1".to_string()));
+            client_list.add(TestMmvkItem::new("Item 2".to_string()));
+
+            client_list.sync_self();
+
+            client_list.add(TestMmvkItem::new("Item 3".to_string()));
+
+            client_list.mark_removed(1).unwrap();
+
+            server_list.add(TestMmvkItem::new("Item 0".to_string()));
+            server_list.add(TestMmvkItem::new("Item 1".to_string()));
+            server_list.add(TestMmvkItem::new("Item 4".to_string()));
+
+            client_list.sync(&mut server_list);
+
+            let mut exp: Vec<TestMmvkItem> = vec![
+                TestMmvkItem::new("Item 0".to_string()),
+                TestMmvkItem::new("Item 3".to_string()),
+                TestMmvkItem::new("Item 4".to_string()),
+            ];
+            exp.iter_mut().for_each(|x| {
+                x.set_state(ItemState::Neutral);
+            });
+
+            assert_eq!(client_list.items().to_owned(), exp);
+            assert_eq!(server_list.items().to_owned(), exp);
+        }
+
+        #[test]
+        #[should_panic]
+        fn mmvk_list_panics_if_both_servers() {
+            let mut client: MmvkList<TestMmvkItem> = MmvkList::new(true);
+            let mut client1: MmvkList<TestMmvkItem> = MmvkList::new(true);
+
+            client.sync(&mut client1);
+        }
+
+        #[test]
+        #[should_panic]
+        fn mmvk_list_panics_if_neither_servers() {
+            let mut client: MmvkList<TestMmvkItem> = MmvkList::new(false);
+            let mut client1: MmvkList<TestMmvkItem> = MmvkList::new(false);
+
+            client.sync(&mut client1);
+        }
     }
 }
