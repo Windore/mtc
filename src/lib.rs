@@ -137,15 +137,39 @@ pub mod sync {
         }
 
         pub fn items_for_date(&self, date: NaiveDate) -> Vec<&T> {
-            mmvk_items_date(&self.items, date)
+            let mut out = Vec::new();
+
+            for item in self.items.iter() {
+                if item.for_date(date) {
+                    out.push(item);
+                }
+            }
+
+            out
         }
 
         pub fn items_for_today(&self) -> Vec<&T> {
-            mmvk_items_today(&self.items)
+            let mut out = Vec::new();
+
+            for item in self.items.iter() {
+                if item.for_today() {
+                    out.push(item);
+                }
+            }
+
+            out
         }
 
         pub fn items_for_weekday(&self, weekday: Weekday) -> Vec<&T> {
-            mmvk_items_weekday(&self.items, weekday)
+            let mut out = Vec::new();
+
+            for item in self.items.iter() {
+                if item.for_weekday(weekday) {
+                    out.push(item);
+                }
+            }
+
+            out
         }
 
         pub fn sync_self(&mut self) {
@@ -214,11 +238,14 @@ pub mod sync {
             }
 
             for item in server_list.items.iter() {
-                if item.state() != ItemState::Removed && client_list
-                    .items
-                    .iter()
-                    .position(|elem| elem.ignore_state_eq(item) && elem.state() != ItemState::Removed)
-                    .is_none()
+                if item.state() != ItemState::Removed
+                    && client_list
+                        .items
+                        .iter()
+                        .position(|elem| {
+                            elem.ignore_state_eq(item) && elem.state() != ItemState::Removed
+                        })
+                        .is_none()
                 {
                     client_list.add(item.clone());
                 }
@@ -373,10 +400,10 @@ impl MmvkItem for TodoItem {
         }
     }
     fn state(&self) -> sync::ItemState {
-        todo!()
+        self.state
     }
-    fn set_state(&mut self, _: sync::ItemState) {
-        todo!()
+    fn set_state(&mut self, new_state: sync::ItemState) {
+        self.state = new_state;
     }
     fn ignore_state_eq(&self, _: &TodoItem) -> bool {
         todo!()
@@ -405,10 +432,10 @@ impl MmvkItem for Task {
         }
     }
     fn state(&self) -> sync::ItemState {
-        todo!()
+        self.state
     }
-    fn set_state(&mut self, _: sync::ItemState) {
-        todo!()
+    fn set_state(&mut self, new_state: sync::ItemState) {
+        self.state = new_state;
     }
     fn ignore_state_eq(&self, _: &Task) -> bool {
         todo!()
@@ -433,147 +460,20 @@ impl MmvkItem for Event {
         self.date == date
     }
     fn state(&self) -> sync::ItemState {
-        todo!()
+        self.state
     }
-    fn set_state(&mut self, _: sync::ItemState) {
-        todo!()
+    fn set_state(&mut self, new_state: sync::ItemState) {
+        self.state = new_state;
     }
     fn ignore_state_eq(&self, _: &Self) -> bool {
         todo!()
     }
 }
 
-/// Returns a `Vec<&T>` containing references to all items that are for a given date.
-///
-/// # Example
-///
-/// ```
-/// use chrono::prelude::*;
-/// use mmvk::{TodoItem, mmvk_items_date};
-///
-/// let items = vec![
-///     TodoItem::new("Do task A".to_string(), None),
-///     TodoItem::new("To dask B".to_string(), Some(Weekday::Tue)),
-///     TodoItem::new("Do task C".to_string(), Some(Weekday::Wed)),
-///     TodoItem::new("D".to_string(), Some(Weekday::Fri)),
-///     TodoItem::new("F".to_string(), Some(Weekday::Mon)),
-/// ];
-///
-/// let expected = vec![
-///     TodoItem::new("Do task A".to_string(), None),
-///     TodoItem::new("To dask B".to_string(), Some(Weekday::Tue)),
-/// ];
-///
-/// // 2021.11.30 was a Tuesday.
-///
-/// // The result is cloned to allow for comparison.
-/// let result: Vec<TodoItem> = mmvk_items_date(&items, NaiveDate::from_ymd(2021, 11, 30))
-///     .iter()
-///     .cloned()
-///     .cloned()
-///     .collect();
-///
-/// assert_eq!(result, expected);
-/// ```
-pub fn mmvk_items_date<'a, T: MmvkItem>(vec: &'a Vec<T>, date: NaiveDate) -> Vec<&'a T> {
-    let mut out = Vec::new();
-
-    for item in vec.iter() {
-        if item.for_date(date) {
-            out.push(item);
-        }
-    }
-
-    out
-}
-
-/// Returns a `Vec<&T>` containing references to all items that are for today.
-///
-/// # Example
-///
-/// ```
-/// use chrono::prelude::*;
-/// use mmvk::{TodoItem, mmvk_items_today};
-///
-/// let items = vec![
-///     TodoItem::new("Do task A".to_string(), None),
-///     TodoItem::new("To dask B".to_string(), Some(Local::today().weekday())),
-///     TodoItem::new("Do task C".to_string(), Some(Local::today().weekday().pred())),
-///     TodoItem::new("D".to_string(), Some(Local::today().weekday().pred().pred())),
-///     TodoItem::new("F".to_string(), Some(Local::today().weekday().succ())),
-/// ];
-///
-/// let expected = vec![
-///     TodoItem::new("Do task A".to_string(), None),
-///     TodoItem::new("To dask B".to_string(), Some(Local::today().weekday())),
-/// ];
-///
-/// // The result is cloned to allow for comparison.
-/// let result: Vec<TodoItem> = mmvk_items_today(&items)
-///     .iter()
-///     .cloned()
-///     .cloned()
-///     .collect();
-///
-/// assert_eq!(result, expected);
-/// ```
-pub fn mmvk_items_today<'a, T: MmvkItem>(vec: &'a Vec<T>) -> Vec<&'a T> {
-    let mut out = Vec::new();
-
-    for item in vec.iter() {
-        if item.for_today() {
-            out.push(item);
-        }
-    }
-
-    out
-}
-
-/// Returns a `Vec<&T>` containing references to all items that are for a given weekday.
-///
-/// # Example
-///
-/// ```
-/// use chrono::prelude::*;
-/// use mmvk::{TodoItem, mmvk_items_weekday};
-///
-/// let items = vec![
-///     TodoItem::new("Do task A".to_string(), None),
-///     TodoItem::new("To dask B".to_string(), Some(Weekday::Tue)),
-///     TodoItem::new("Do task C".to_string(), Some(Weekday::Wed)),
-///     TodoItem::new("D".to_string(), Some(Weekday::Fri)),
-///     TodoItem::new("F".to_string(), Some(Weekday::Mon)),
-/// ];
-///
-/// let expected = vec![
-///     TodoItem::new("Do task A".to_string(), None),
-///     TodoItem::new("To dask B".to_string(), Some(Weekday::Tue)),
-/// ];
-///
-/// // The result is cloned to allow for comparison.
-/// let result: Vec<TodoItem> = mmvk_items_weekday(&items, Weekday::Tue)
-///     .iter()
-///     .cloned()
-///     .cloned()
-///     .collect();
-///
-/// assert_eq!(result, expected);
-/// ```
-pub fn mmvk_items_weekday<'a, T: MmvkItem>(vec: &'a Vec<T>, weekday: Weekday) -> Vec<&'a T> {
-    let mut out = Vec::new();
-
-    for item in vec.iter() {
-        if item.for_weekday(weekday) {
-            out.push(item);
-        }
-    }
-
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sync::MmvkList;
 
     #[test]
     fn todo_item_for_date_returns_true() {
@@ -717,13 +617,12 @@ mod tests {
 
     #[test]
     fn mmvk_items_date_returns_expected() {
-        let items = vec![
-            TodoItem::new("test0".to_string(), None),
-            TodoItem::new("test1".to_string(), Some(Weekday::Tue)),
-            TodoItem::new("test2".to_string(), Some(Weekday::Wed)),
-            TodoItem::new("test3".to_string(), None),
-            TodoItem::new("test4".to_string(), Some(Weekday::Tue)),
-        ];
+        let mut list = MmvkList::new(true);
+        list.add(TodoItem::new("test0".to_string(), None));
+        list.add(TodoItem::new("test1".to_string(), Some(Weekday::Tue)));
+        list.add(TodoItem::new("test2".to_string(), Some(Weekday::Wed)));
+        list.add(TodoItem::new("test3".to_string(), None));
+        list.add(TodoItem::new("test4".to_string(), Some(Weekday::Tue)));
 
         let expected = vec![
             TodoItem::new("test0".to_string(), None),
@@ -732,7 +631,8 @@ mod tests {
             TodoItem::new("test4".to_string(), Some(Weekday::Tue)),
         ];
 
-        let result: Vec<TodoItem> = mmvk_items_date(&items, NaiveDate::from_ymd(2021, 11, 30))
+        let result: Vec<TodoItem> = list
+            .items_for_date(NaiveDate::from_ymd(2021, 11, 30))
             .iter()
             .cloned()
             .cloned()
@@ -745,13 +645,12 @@ mod tests {
     fn mmvk_items_today_returns_expected() {
         let today = Local::now().weekday();
 
-        let items = vec![
-            Task::new("test0".to_string(), 40, Some(today)),
-            Task::new("test1".to_string(), 30, Some(today)),
-            Task::new("test2".to_string(), 10, Some(today.pred())),
-            Task::new("test3".to_string(), 0, None),
-            Task::new("test4".to_string(), 90, Some(today.succ().succ())),
-        ];
+        let mut items = MmvkList::new(true);
+        items.add(Task::new("test0".to_string(), 40, Some(today)));
+        items.add(Task::new("test1".to_string(), 30, Some(today)));
+        items.add(Task::new("test2".to_string(), 10, Some(today.pred())));
+        items.add(Task::new("test3".to_string(), 0, None));
+        items.add(Task::new("test4".to_string(), 90, Some(today.succ().succ())));
 
         let expected = vec![
             Task::new("test0".to_string(), 40, Some(today)),
@@ -759,20 +658,19 @@ mod tests {
             Task::new("test3".to_string(), 0, None),
         ];
 
-        let result: Vec<Task> = mmvk_items_today(&items).iter().cloned().cloned().collect();
+        let result: Vec<Task> = items.items_for_today().iter().cloned().cloned().collect();
 
         assert_eq!(result, expected);
     }
 
     #[test]
     fn mmvk_items_weekday_returns_expected() {
-        let items = vec![
-            Task::new("test0".to_string(), 40, Some(Weekday::Fri)),
-            Task::new("test1".to_string(), 30, Some(Weekday::Fri)),
-            Task::new("test2".to_string(), 10, Some(Weekday::Mon)),
-            Task::new("test3".to_string(), 0, None),
-            Task::new("test4".to_string(), 90, Some(Weekday::Wed)),
-        ];
+        let mut items = MmvkList::new(true);
+        items.add(Task::new("test0".to_string(), 40, Some(Weekday::Fri)));
+        items.add(Task::new("test1".to_string(), 30, Some(Weekday::Fri)));
+        items.add(Task::new("test2".to_string(), 10, Some(Weekday::Mon)));
+        items.add(Task::new("test3".to_string(), 0, None));
+        items.add(Task::new("test4".to_string(), 90, Some(Weekday::Wed)));
 
         let expected = vec![
             Task::new("test0".to_string(), 40, Some(Weekday::Fri)),
@@ -780,7 +678,7 @@ mod tests {
             Task::new("test3".to_string(), 0, None),
         ];
 
-        let result: Vec<Task> = mmvk_items_weekday(&items, Weekday::Fri)
+        let result: Vec<Task> = items.items_for_weekday(Weekday::Fri)
             .iter()
             .cloned()
             .cloned()
@@ -791,15 +689,14 @@ mod tests {
 
     #[test]
     fn mmvk_items_date_returns_expected_for_events() {
-        let items = vec![
-            Event::new("test0".to_string(), NaiveDate::from_ymd(2021, 10, 5), None),
-            Event::new("test1".to_string(), NaiveDate::from_ymd(2021, 11, 5), None),
-            Event::new("test2".to_string(), NaiveDate::from_ymd(2021, 10, 6), None),
-            Event::new("test3".to_string(), NaiveDate::from_ymd(2021, 10, 5), None),
-            Event::new("test4".to_string(), NaiveDate::from_ymd(2021, 10, 5), None),
-            Event::new("test5".to_string(), NaiveDate::from_ymd(2020, 10, 5), None),
-            Event::new("test6".to_string(), NaiveDate::from_ymd(2020, 11, 30), None),
-        ];
+        let mut items = MmvkList::new(true);
+        items.add(Event::new("test0".to_string(), NaiveDate::from_ymd(2021, 10, 5), None));
+        items.add(Event::new("test1".to_string(), NaiveDate::from_ymd(2021, 11, 5), None));
+        items.add(Event::new("test2".to_string(), NaiveDate::from_ymd(2021, 10, 6), None));
+        items.add(Event::new("test3".to_string(), NaiveDate::from_ymd(2021, 10, 5), None));
+        items.add(Event::new("test4".to_string(), NaiveDate::from_ymd(2021, 10, 5), None));
+        items.add(Event::new("test5".to_string(), NaiveDate::from_ymd(2020, 10, 5), None));
+        items.add(Event::new("test6".to_string(), NaiveDate::from_ymd(2020, 11, 30), None));
 
         let expected = vec![
             Event::new("test0".to_string(), NaiveDate::from_ymd(2021, 10, 5), None),
@@ -807,7 +704,7 @@ mod tests {
             Event::new("test4".to_string(), NaiveDate::from_ymd(2021, 10, 5), None),
         ];
 
-        let result: Vec<Event> = mmvk_items_date(&items, NaiveDate::from_ymd(2021, 10, 5))
+        let result: Vec<Event> = items.items_for_date(NaiveDate::from_ymd(2021, 10, 5))
             .iter()
             .cloned()
             .cloned()
@@ -945,7 +842,6 @@ mod tests {
             sorted.sort();
 
             assert_eq!(sorted, exp);
-            
             let mut sorted = server_list.items().to_owned();
             sorted.sort();
 
@@ -982,7 +878,6 @@ mod tests {
             sorted.sort();
 
             assert_eq!(sorted, exp);
-            
             let mut sorted = server_list.items().to_owned();
             sorted.sort();
 
@@ -1019,7 +914,6 @@ mod tests {
             sorted.sort();
 
             assert_eq!(sorted, exp);
-            
             let mut sorted = server_list.items().to_owned();
             sorted.sort();
 
@@ -1050,7 +944,6 @@ mod tests {
             sorted.sort();
 
             assert_eq!(sorted, exp);
-            
             let mut sorted = server_list.items().to_owned();
             sorted.sort();
 
@@ -1086,7 +979,6 @@ mod tests {
             sorted.sort();
 
             assert_eq!(sorted, exp);
-            
             let mut sorted = server_list.items().to_owned();
             sorted.sort();
 
@@ -1121,7 +1013,6 @@ mod tests {
             sorted.sort();
 
             assert_eq!(sorted, exp);
-            
             let mut sorted = server_list.items().to_owned();
             sorted.sort();
 
@@ -1162,7 +1053,6 @@ mod tests {
             sorted.sort();
 
             assert_eq!(sorted, exp);
-            
             let mut sorted = server_list.items().to_owned();
             sorted.sort();
 
