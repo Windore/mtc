@@ -10,7 +10,7 @@ use chrono::prelude::*;
 mod items;
 pub use crate::items::*;
 
-/// A General trait for sharing a implementation between TodoItems, Tasks and Events.
+/// An Item for MtcList. A struct implementing MtcItem is usually defined for a specific time and it has a state.
 pub trait MtcItem {
     /// Returns true if the item is for a given date.
     ///
@@ -96,6 +96,41 @@ pub trait MtcItem {
     /// Sets the `ItemState` of the item.
     fn set_state(&mut self, state: ItemState);
     /// Compares the MtcItems while ignoring the state.
+    ///
+    /// # Example
+    /// ```
+    /// use chrono::prelude::{Weekday, NaiveDate};
+    /// use mtc::{MtcItem, ItemState};
+    ///
+    /// struct TodoItem {
+    ///     weekday: Option<Weekday>,
+    ///     body: String,
+    ///     state: ItemState,
+    /// }
+    ///
+    /// impl MtcItem for TodoItem {
+    ///     fn ignore_state_eq(&self, other: &TodoItem) -> bool {
+    ///         self.body == other.body && self.weekday == other.weekday
+    ///     }
+    ///     fn for_date(&self, date: NaiveDate) -> bool { todo!() }
+    ///     fn state(&self) -> ItemState { todo!() }
+    ///     fn set_state(&mut self, state: ItemState) { todo!() }
+    /// }
+    ///
+    /// let item1 = TodoItem {
+    ///     weekday: Some(Weekday::Mon),
+    ///     body: "Item".to_string(),
+    ///     state: ItemState::New,
+    /// };
+    ///
+    /// let item2 = TodoItem {
+    ///     weekday: Some(Weekday::Mon),
+    ///     body: "Item".to_string(),
+    ///     state: ItemState::Neutral,
+    /// };
+    ///
+    /// assert!(item1.ignore_state_eq(&item2));
+    /// ```
     fn ignore_state_eq(&self, other: &Self) -> bool;
 }
 
@@ -164,7 +199,7 @@ impl<T: MtcItem + Clone> MtcList<T> {
         new
     }
 
-    /// Returns a new vectro containing references to all items that are for a given date.
+    /// Returns a new vector containing references to all items that are for a given date.
     pub fn items_for_date(&self, date: NaiveDate) -> Vec<&T> {
         let mut out = Vec::new();
 
@@ -224,8 +259,59 @@ impl<T: MtcItem + Clone> MtcList<T> {
     /// Synchronizes this MtcList with the other MtcList.
     /// Either one of these lists is expected to be a server and the other a client.
     /// Removes items that are marked for removal.
+    /// 
     /// # Panics
+    /// 
     /// If neither one of the lists is a server or if both are servers.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use mtc::{MtcList, TodoItem};
+    /// use chrono::prelude::Weekday;
+    /// 
+    /// let mut client_list = MtcList::new(false);
+    /// 
+    /// client_list.add(TodoItem::new("Task 1".to_string(), None));
+    /// client_list.add(TodoItem::new("Task 2".to_string(), Some(Weekday::Mon)));
+    /// client_list.add(TodoItem::new("Task 3".to_string(), Some(Weekday::Fri)));
+    /// 
+    /// // Set the state of all items in the client list from New to Neutral by using sync_self
+    /// 
+    /// client_list.sync_self();
+    /// 
+    /// // This one will have the state New
+    /// client_list.add(TodoItem::new("Task 4".to_string(), Some(Weekday::Sat)));
+    /// 
+    /// // Set the Task 2 element to Removed
+    /// client_list.mark_removed(1); // It will have the index of 1
+    /// 
+    /// let mut server_list = MtcList::new(true);
+    /// server_list.add(TodoItem::new("Task 1".to_string(), None));
+    /// server_list.add(TodoItem::new("Task 2".to_string(), Some(Weekday::Mon)));
+    /// server_list.add(TodoItem::new("Task 5".to_string(), Some(Weekday::Mon)));
+    /// 
+    /// client_list.sync(&mut server_list);
+    /// // server_list.sync(&mut client_list); may be used as well. There is no difference
+    /// 
+    /// // The operation should result in the following list. Both server and client will have same items but the order may be different.
+    /// let mut resultting_client_list = MtcList::new(false);
+    /// resultting_client_list.add(TodoItem::new("Task 1".to_string(), None));
+    /// resultting_client_list.add(TodoItem::new("Task 4".to_string(), Some(Weekday::Sat)));
+    /// resultting_client_list.add(TodoItem::new("Task 5".to_string(), Some(Weekday::Mon)));
+    /// 
+    /// // The resultting list needs to be self synced since the items otherwise would have the state New
+    /// resultting_client_list.sync_self();
+    /// 
+    /// // The only difference between the lists is the is_server field of both lists which is not a result of the sync function.
+    /// let mut resultting_server_list = MtcList::new(true);
+    /// resultting_server_list.add(TodoItem::new("Task 1".to_string(), None));
+    /// resultting_server_list.add(TodoItem::new("Task 5".to_string(), Some(Weekday::Mon)));
+    /// resultting_server_list.add(TodoItem::new("Task 4".to_string(), Some(Weekday::Sat)));
+    /// 
+    /// assert_eq!(client_list, resultting_client_list);
+    /// assert_eq!(server_list, resultting_server_list);
+    /// ```
     pub fn sync(&mut self, other: &mut MtcList<T>) {
         if self.is_server && other.is_server {
             panic!("Both self and other are servers.");
@@ -467,43 +553,36 @@ mod tests {
         items.add(Event::new(
             "test0".to_string(),
             NaiveDate::from_ymd(2021, 10, 5),
-            None,
         ));
         items.add(Event::new(
             "test1".to_string(),
             NaiveDate::from_ymd(2021, 11, 5),
-            None,
         ));
         items.add(Event::new(
             "test2".to_string(),
             NaiveDate::from_ymd(2021, 10, 6),
-            None,
         ));
         items.add(Event::new(
             "test3".to_string(),
             NaiveDate::from_ymd(2021, 10, 5),
-            None,
         ));
         items.add(Event::new(
             "test4".to_string(),
             NaiveDate::from_ymd(2021, 10, 5),
-            None,
         ));
         items.add(Event::new(
             "test5".to_string(),
             NaiveDate::from_ymd(2020, 10, 5),
-            None,
         ));
         items.add(Event::new(
             "test6".to_string(),
             NaiveDate::from_ymd(2020, 11, 30),
-            None,
         ));
 
         let expected = vec![
-            Event::new("test0".to_string(), NaiveDate::from_ymd(2021, 10, 5), None),
-            Event::new("test3".to_string(), NaiveDate::from_ymd(2021, 10, 5), None),
-            Event::new("test4".to_string(), NaiveDate::from_ymd(2021, 10, 5), None),
+            Event::new("test0".to_string(), NaiveDate::from_ymd(2021, 10, 5)),
+            Event::new("test3".to_string(), NaiveDate::from_ymd(2021, 10, 5)),
+            Event::new("test4".to_string(), NaiveDate::from_ymd(2021, 10, 5)),
         ];
 
         let result: Vec<Event> = items

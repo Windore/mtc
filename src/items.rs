@@ -24,7 +24,6 @@ pub struct Task {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Event {
     date: NaiveDate,
-    time: Option<NaiveTime>,
     body: String,
     state: ItemState,
 }
@@ -89,11 +88,10 @@ impl Task {
 
 impl Event {
     /// Creates a new `Event` with a given body, date and optionally a time.
-    pub fn new(body: String, date: NaiveDate, time: Option<NaiveTime>) -> Event {
+    pub fn new(body: String, date: NaiveDate) -> Event {
         Event {
             body,
             date,
-            time,
             state: ItemState::Neutral,
         }
     }
@@ -111,16 +109,6 @@ impl Event {
     /// Sets the date of the `Event`.
     pub fn set_date(&mut self, new_date: NaiveDate) {
         self.date = new_date;
-    }
-
-    /// Returns the optinal time of the `Event`.
-    pub fn time(&self) -> Option<NaiveTime> {
-        self.time
-    }
-
-    /// Sets the optional time of the `Event`.
-    pub fn set_time(&mut self, new_time: Option<NaiveTime>) {
-        self.time = new_time;
     }
 }
 
@@ -151,8 +139,24 @@ impl MtcItem for TodoItem {
     fn set_state(&mut self, new_state: ItemState) {
         self.state = new_state;
     }
-    fn ignore_state_eq(&self, _: &TodoItem) -> bool {
-        todo!()
+    /// Returns true if self and other are equal except for the state which can differ.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// 
+    /// use mtc::{TodoItem, ItemState, MtcItem};
+    /// 
+    /// let mut item1 = TodoItem::new("Task 1".to_string(), None);
+    /// item1.set_state(ItemState::New);
+    ///
+    /// let mut item2 = TodoItem::new("Task 1".to_string(), None);
+    /// item2.set_state(ItemState::Neutral);
+    ///
+    /// assert!(item1.ignore_state_eq(&item2));
+    /// ```
+    fn ignore_state_eq(&self, other: &TodoItem) -> bool {
+        self.body == other.body && self.weekday == other.weekday
     }
 }
 
@@ -183,8 +187,24 @@ impl MtcItem for Task {
     fn set_state(&mut self, new_state: ItemState) {
         self.state = new_state;
     }
-    fn ignore_state_eq(&self, _: &Task) -> bool {
-        todo!()
+    /// Returns true if self and other are equal except for the state which can differ.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// 
+    /// use mtc::{Task, ItemState, MtcItem};
+    /// 
+    /// let mut item1 = Task::new("Task 1".to_string(), 10, None);
+    /// item1.set_state(ItemState::New);
+    ///
+    /// let mut item2 = Task::new("Task 1".to_string(), 10, None);
+    /// item2.set_state(ItemState::Neutral);
+    ///
+    /// assert!(item1.ignore_state_eq(&item2));
+    /// ```
+    fn ignore_state_eq(&self, other: &Task) -> bool {
+        self.body == other.body && self.weekday == other.weekday && self.duration == other.duration
     }
 }
 
@@ -197,7 +217,7 @@ impl MtcItem for Event {
     /// use chrono::prelude::*;
     /// use mtc::{Event, MtcItem};
     ///
-    /// let item = Event::new("Do task A".to_string(), NaiveDate::from_ymd(2021, 11, 30), None);
+    /// let item = Event::new("Do task A".to_string(), NaiveDate::from_ymd(2021, 11, 30));
     ///
     /// assert!(item.for_date(NaiveDate::from_ymd(2021, 11, 30)));
     /// assert!(!item.for_date(NaiveDate::from_ymd(2021, 12, 6)));
@@ -211,10 +231,69 @@ impl MtcItem for Event {
     fn set_state(&mut self, new_state: ItemState) {
         self.state = new_state;
     }
-    fn ignore_state_eq(&self, _: &Self) -> bool {
-        todo!()
+    /// Returns true if self and other are equal except for the state which can differ.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// 
+    /// use mtc::{Event, ItemState, MtcItem};
+    /// use chrono::prelude::NaiveDate;
+    /// 
+    /// let mut item1 = Event::new("Event 1".to_string(), NaiveDate::from_ymd(2022, 1, 1));
+    /// item1.set_state(ItemState::New);
+    ///
+    /// let mut item2 = Event::new("Event 1".to_string(), NaiveDate::from_ymd(2022, 1, 1));
+    /// item2.set_state(ItemState::Neutral);
+    ///
+    /// assert!(item1.ignore_state_eq(&item2));
+    /// ```
+    fn ignore_state_eq(&self, other: &Self) -> bool {
+        self.body == other.body && self.date == other.date
     }
 }
+
+impl Ord for TodoItem {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.body.cmp(&other.body)
+    }
+}
+
+impl PartialOrd for TodoItem {
+    fn partial_cmp(&self, other: &Self) -> std::option::Option<std::cmp::Ordering> {
+        Some(self.body.cmp(&other.body))
+    }
+}
+
+impl Eq for TodoItem {}
+
+impl Ord for Task {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.body.cmp(&other.body)
+    }
+}
+
+impl PartialOrd for Task {
+    fn partial_cmp(&self, other: &Self) -> std::option::Option<std::cmp::Ordering> {
+        Some(self.body.cmp(&other.body))
+    }
+}
+
+impl Eq for Task {}
+
+impl Ord for Event {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.body.cmp(&other.body)
+    }
+}
+
+impl PartialOrd for Event {
+    fn partial_cmp(&self, other: &Self) -> std::option::Option<std::cmp::Ordering> {
+        Some(self.body.cmp(&other.body))
+    }
+}
+
+impl Eq for Event {}
 
 #[cfg(test)]
 mod tests {
@@ -255,7 +334,7 @@ mod tests {
     #[test]
     fn event_for_date_returns_true() {
         let date = NaiveDate::from_ymd(2021, 12, 6);
-        let ti = Event::new("test".to_string(), NaiveDate::from_ymd(2021, 12, 6), None);
+        let ti = Event::new("test".to_string(), NaiveDate::from_ymd(2021, 12, 6));
 
         assert!(ti.for_date(date));
     }
@@ -263,8 +342,80 @@ mod tests {
     #[test]
     fn event_for_date_returns_false() {
         let date = NaiveDate::from_ymd(2021, 12, 6);
-        let ti = Event::new("test".to_string(), NaiveDate::from_ymd(2021, 12, 5), None);
+        let ti = Event::new("test".to_string(), NaiveDate::from_ymd(2021, 12, 5));
 
         assert!(!ti.for_date(date));
+    }
+
+    #[test]
+    fn todo_item_ignore_state_eq_returns_true() {
+        let mut item1 = TodoItem::new("Task 1".to_string(), None);
+        item1.set_state(ItemState::New);
+
+        let mut item2 = TodoItem::new("Task 1".to_string(), None);
+        item2.set_state(ItemState::Neutral);
+
+        assert!(item1.ignore_state_eq(&item2));
+        assert!(item2.ignore_state_eq(&item1));
+    }
+
+    #[test]
+    fn todo_item_ignore_state_eq_returns_false() {
+        let mut item1 = TodoItem::new("Task 1".to_string(), Some(Weekday::Fri));
+        item1.set_state(ItemState::New);
+
+        let mut item2 = TodoItem::new("Task 1".to_string(), None);
+        item2.set_state(ItemState::Neutral);
+
+        assert!(!item1.ignore_state_eq(&item2));
+        assert!(!item2.ignore_state_eq(&item1));
+    }
+
+    #[test]
+    fn task_ignore_state_eq_returns_true() {
+        let mut item1 = Task::new("Task 1".to_string(), 30, None);
+        item1.set_state(ItemState::New);
+
+        let mut item2 = Task::new("Task 1".to_string(), 30, None);
+        item2.set_state(ItemState::Neutral);
+
+        assert!(item1.ignore_state_eq(&item2));
+        assert!(item2.ignore_state_eq(&item1));
+    }
+
+    #[test]
+    fn task_ignore_state_eq_returns_false() {
+        let mut item1 = Task::new("Task 1".to_string(), 31, None);
+        item1.set_state(ItemState::New);
+
+        let mut item2 = Task::new("Task 1".to_string(), 30, None);
+        item2.set_state(ItemState::Neutral);
+
+        assert!(!item1.ignore_state_eq(&item2));
+        assert!(!item2.ignore_state_eq(&item1));
+    }
+
+    #[test]
+    fn event_ignore_state_eq_returns_true() {
+        let mut item1 = Event::new("Event 1".to_string(), NaiveDate::from_ymd(2022, 1, 1));
+        item1.set_state(ItemState::New);
+
+        let mut item2 = Event::new("Event 1".to_string(), NaiveDate::from_ymd(2022, 1, 1));
+        item2.set_state(ItemState::Neutral);
+
+        assert!(item1.ignore_state_eq(&item2));
+        assert!(item2.ignore_state_eq(&item1));
+    }
+
+    #[test]
+    fn event_ignore_state_eq_returns_false() {
+        let mut item1 = Event::new("Event 1".to_string(), NaiveDate::from_ymd(2022, 1, 2));
+        item1.set_state(ItemState::New);
+
+        let mut item2 = Event::new("Event 1".to_string(), NaiveDate::from_ymd(2022, 1, 1));
+        item2.set_state(ItemState::Neutral);
+
+        assert!(!item1.ignore_state_eq(&item2));
+        assert!(!item2.ignore_state_eq(&item1));
     }
 }
