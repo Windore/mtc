@@ -140,13 +140,13 @@ impl MtcItem for TodoItem {
         self.state = new_state;
     }
     /// Returns true if self and other are equal except for the state which can differ.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```
-    /// 
+    ///
     /// use mtc::{TodoItem, ItemState, MtcItem};
-    /// 
+    ///
     /// let mut item1 = TodoItem::new("Task 1".to_string(), None);
     /// item1.set_state(ItemState::New);
     ///
@@ -188,13 +188,13 @@ impl MtcItem for Task {
         self.state = new_state;
     }
     /// Returns true if self and other are equal except for the state which can differ.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```
-    /// 
+    ///
     /// use mtc::{Task, ItemState, MtcItem};
-    /// 
+    ///
     /// let mut item1 = Task::new("Task 1".to_string(), 10, None);
     /// item1.set_state(ItemState::New);
     ///
@@ -232,14 +232,14 @@ impl MtcItem for Event {
         self.state = new_state;
     }
     /// Returns true if self and other are equal except for the state which can differ.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```
-    /// 
+    ///
     /// use mtc::{Event, ItemState, MtcItem};
     /// use chrono::prelude::NaiveDate;
-    /// 
+    ///
     /// let mut item1 = Event::new("Event 1".to_string(), NaiveDate::from_ymd(2022, 1, 1));
     /// item1.set_state(ItemState::New);
     ///

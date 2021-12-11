@@ -176,11 +176,11 @@ impl<T: MtcItem + Clone> MtcList<T> {
     /// Marks a MtcItem of a given index to be removed. Returns Err(&str) if index is out of bounds.
     pub fn mark_removed(&mut self, index: usize) -> Result<(), &str> {
         if let Some(item) = self.items.get_mut(index) {
-            if !self.is_server {
-                item.set_state(ItemState::Removed);
-            } else {
+            if self.is_server {
                 drop(item);
                 self.items.remove(index);
+            } else {
+                item.set_state(ItemState::Removed);
             }
             Ok(())
         } else {
@@ -201,114 +201,86 @@ impl<T: MtcItem + Clone> MtcList<T> {
 
     /// Returns a new vector containing references to all items that are for a given date.
     pub fn items_for_date(&self, date: NaiveDate) -> Vec<&T> {
-        let mut out = Vec::new();
-
-        for item in self.items.iter() {
-            if item.for_date(date) {
-                out.push(item);
-            }
-        }
-
-        out
+        self.items
+            .iter()
+            .filter(|item| item.for_date(date))
+            .collect()
     }
 
     /// Return a new vector containing references to all items that are for today.
     pub fn items_for_today(&self) -> Vec<&T> {
-        let mut out = Vec::new();
-
-        for item in self.items.iter() {
-            if item.for_today() {
-                out.push(item);
-            }
-        }
-
-        out
+        self.items.iter().filter(|item| item.for_today()).collect()
     }
 
     /// Return a vector containing references to all items that are for a given weekday.
     pub fn items_for_weekday(&self, weekday: Weekday) -> Vec<&T> {
-        let mut out = Vec::new();
-
-        for item in self.items.iter() {
-            if item.for_weekday(weekday) {
-                out.push(item);
-            }
-        }
-
-        out
+        self.items
+            .iter()
+            .filter(|item| item.for_weekday(weekday))
+            .collect()
     }
 
     /// Synchronizes the list with itself by removing all items with the Removed state and setting the state of the rest to Neutral.
     pub fn sync_self(&mut self) {
-        let mut removed = Vec::new();
-
-        for (i, item) in self.items.iter_mut().enumerate() {
-            if item.state() == ItemState::Removed {
-                removed.push(i);
-            } else {
-                item.set_state(ItemState::Neutral);
-            }
-        }
-
-        removed.sort();
-        while let Some(r) = removed.pop() {
-            self.items.remove(r);
-        }
+        self.items.retain(|item| item.state() != ItemState::Removed);
+        self.items
+            .iter_mut()
+            .for_each(|item| item.set_state(ItemState::Neutral));
     }
 
     /// Synchronizes this MtcList with the other MtcList.
     /// Either one of these lists is expected to be a server and the other a client.
     /// Removes items that are marked for removal.
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// If neither one of the lists is a server or if both are servers.
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use mtc::{MtcList, TodoItem};
     /// use chrono::prelude::Weekday;
-    /// 
+    ///
     /// let mut client_list = MtcList::new(false);
-    /// 
+    ///
     /// client_list.add(TodoItem::new("Task 1".to_string(), None));
     /// client_list.add(TodoItem::new("Task 2".to_string(), Some(Weekday::Mon)));
     /// client_list.add(TodoItem::new("Task 3".to_string(), Some(Weekday::Fri)));
-    /// 
+    ///
     /// // Set the state of all items in the client list from New to Neutral by using sync_self
-    /// 
+    ///
     /// client_list.sync_self();
-    /// 
+    ///
     /// // This one will have the state New
     /// client_list.add(TodoItem::new("Task 4".to_string(), Some(Weekday::Sat)));
-    /// 
+    ///
     /// // Set the Task 2 element to Removed
     /// client_list.mark_removed(1); // It will have the index of 1
-    /// 
+    ///
     /// let mut server_list = MtcList::new(true);
     /// server_list.add(TodoItem::new("Task 1".to_string(), None));
     /// server_list.add(TodoItem::new("Task 2".to_string(), Some(Weekday::Mon)));
     /// server_list.add(TodoItem::new("Task 5".to_string(), Some(Weekday::Mon)));
-    /// 
+    ///
     /// client_list.sync(&mut server_list);
     /// // server_list.sync(&mut client_list); may be used as well. There is no difference
-    /// 
+    ///
     /// // The operation should result in the following list. Both server and client will have same items but the order may be different.
     /// let mut resultting_client_list = MtcList::new(false);
     /// resultting_client_list.add(TodoItem::new("Task 1".to_string(), None));
     /// resultting_client_list.add(TodoItem::new("Task 4".to_string(), Some(Weekday::Sat)));
     /// resultting_client_list.add(TodoItem::new("Task 5".to_string(), Some(Weekday::Mon)));
-    /// 
+    ///
     /// // The resultting list needs to be self synced since the items otherwise would have the state New
     /// resultting_client_list.sync_self();
-    /// 
+    ///
     /// // The only difference between the lists is the is_server field of both lists which is not a result of the sync function.
     /// let mut resultting_server_list = MtcList::new(true);
     /// resultting_server_list.add(TodoItem::new("Task 1".to_string(), None));
     /// resultting_server_list.add(TodoItem::new("Task 5".to_string(), Some(Weekday::Mon)));
     /// resultting_server_list.add(TodoItem::new("Task 4".to_string(), Some(Weekday::Sat)));
-    /// 
+    ///
     /// assert_eq!(client_list, resultting_client_list);
     /// assert_eq!(server_list, resultting_server_list);
     /// ```
@@ -332,7 +304,10 @@ impl<T: MtcItem + Clone> MtcList<T> {
         for item in client_list.items.iter_mut() {
             match item.state() {
                 ItemState::Removed => {
+                    // Remove same item from server list if it exists
                     for elem in server_list.items.iter_mut() {
+                        // All servers have only neutral items so if an item is removed that indicates that there are duplicate items.
+                        // This prevents duplicate items blocking others removal.
                         if elem.ignore_state_eq(item) && elem.state() != ItemState::Removed {
                             elem.set_state(ItemState::Removed);
                             break;
@@ -343,6 +318,7 @@ impl<T: MtcItem + Clone> MtcList<T> {
                     server_list.add(item.clone());
                 }
                 ItemState::Neutral => {
+                    // Check if server list contains the item. If not it should be removed.
                     if server_list
                         .items
                         .iter()
@@ -355,17 +331,23 @@ impl<T: MtcItem + Clone> MtcList<T> {
             };
         }
 
+        // Add items from server that don't yet exist on the client.
+
         for item in server_list.items.iter() {
-            if item.state() != ItemState::Removed
-                && client_list
-                    .items
-                    .iter()
-                    .position(|elem| {
-                        elem.ignore_state_eq(item) && elem.state() != ItemState::Removed
-                    })
-                    .is_none()
-            {
-                client_list.add(item.clone());
+            // Go through every non removed item in the server list.
+            if item.state() != ItemState::Removed {
+                let mut should_add = true;
+                // Check for a similar item in the client list.
+                for elem in client_list.items.iter() {
+                    // Don't add the item if a non removed similar item already exists in the client list.
+                    if elem.ignore_state_eq(item) && elem.state() != ItemState::Removed {
+                        should_add = false;
+                        break;
+                    }
+                }
+                if should_add {
+                    client_list.add(item.clone());
+                }
             }
         }
 
