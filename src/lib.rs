@@ -3,8 +3,12 @@
 //! This API provides the base functionality for mtc. It can be also used for creating apps that
 //! can sync with the mtc CLI app or serve as an additional interface.
 
+#![warn(missing_docs)]
+
 use chrono::prelude::*;
-use sync::ItemState;
+
+mod items;
+pub use crate::items::*;
 
 /// A General trait for sharing a implementation between TodoItems, Tasks and Events.
 pub trait MtcItem {
@@ -13,7 +17,7 @@ pub trait MtcItem {
     /// # Example
     /// ```
     /// use chrono::prelude::*;
-    /// use mtc::MtcItem;
+    /// use mtc::{MtcItem,ItemState};
     ///
     /// struct WeekdayItem {
     ///     weekday: Weekday,
@@ -23,6 +27,9 @@ pub trait MtcItem {
     ///     fn for_date(&self, date: NaiveDate) -> bool {
     ///         self.weekday == date.weekday()
     ///     }
+    ///     fn state(&self) -> ItemState { todo!() }
+    ///     fn set_state(&mut self, state: ItemState) { todo!() }
+    ///     fn ignore_state_eq(&self, other: &Self) -> bool { todo!() }
     /// }
     ///
     /// assert!(WeekdayItem { weekday: Weekday::Mon }.for_date(NaiveDate::from_ymd(2021, 12, 6)));
@@ -34,7 +41,7 @@ pub trait MtcItem {
     /// # Example
     /// ```
     /// use chrono::prelude::*;
-    /// use mtc::MtcItem;
+    /// use mtc::{MtcItem,ItemState};
     ///
     /// struct WeekdayItem {
     ///     weekday: Weekday,
@@ -44,6 +51,9 @@ pub trait MtcItem {
     ///     fn for_date(&self, date: NaiveDate) -> bool {
     ///         self.weekday == date.weekday()
     ///     }
+    ///     fn state(&self) -> ItemState { todo!() }
+    ///     fn set_state(&mut self, state: ItemState) { todo!() }
+    ///     fn ignore_state_eq(&self, other: &Self) -> bool { todo!() }
     /// }
     ///
     /// assert!(WeekdayItem { weekday: Local::today().weekday() }.for_today());
@@ -56,7 +66,7 @@ pub trait MtcItem {
     /// # Example
     /// ```
     /// use chrono::prelude::*;
-    /// use mtc::MtcItem;
+    /// use mtc::{MtcItem,ItemState};
     ///
     /// struct WeekdayItem {
     ///     weekday: Weekday,
@@ -66,6 +76,9 @@ pub trait MtcItem {
     ///     fn for_date(&self, date: NaiveDate) -> bool {
     ///         self.weekday == date.weekday()
     ///     }
+    ///     fn state(&self) -> ItemState { todo!() }
+    ///     fn set_state(&mut self, state: ItemState) { todo!() }
+    ///     fn ignore_state_eq(&self, other: &Self) -> bool { todo!() }
     /// }
     ///
     /// assert!(WeekdayItem { weekday: Weekday::Fri }.for_weekday(Weekday::Fri));
@@ -82,446 +95,202 @@ pub trait MtcItem {
     fn state(&self) -> ItemState;
     /// Sets the `ItemState` of the item.
     fn set_state(&mut self, state: ItemState);
+    /// Compares the MtcItems while ignoring the state.
     fn ignore_state_eq(&self, other: &Self) -> bool;
 }
 
-pub mod sync {
-    use super::*;
+/// A state of an MtcItem used for synchronising MtcLists correctly
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum ItemState {
+    /// MtcItem is a new item and the server list does not contain it
+    New,
+    /// MtcItem is removed and if it exists on the server it should be removed from there too.
+    Removed,
+    /// MtcItem is not new nor should it be removed. If it doesn't exist on the server it will be removed.
+    Neutral,
+}
 
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub enum ItemState {
-        New,
-        Removed,
-        Neutral,
+/// A wrapper for a Vec containing MtcItems. The wrapper helps to manage the state of the items and sync them correctly.
+/// A MtcList can be either a client or a server list which affect the functionality of the list. Server lists don't track
+/// the state since multiple clients could be interacting with the same server.
+#[derive(Debug, PartialEq, Clone)]
+pub struct MtcList<T: MtcItem + Clone> {
+    items: Vec<T>,
+    is_server: bool,
+}
+
+impl<T: MtcItem + Clone> MtcList<T> {
+    /// Creates a new MtcList which will be either a server or a client.
+    pub fn new(is_server: bool) -> MtcList<T> {
+        MtcList {
+            items: Vec::new(),
+            is_server,
+        }
     }
 
-    #[derive(Debug, PartialEq, Clone)]
-    pub struct MtcList<T: MtcItem + PartialEq + Clone> {
-        items: Vec<T>,
-        is_server: bool,
+    /// Appends a new MtcItem to the list setting the items state to new.
+    pub fn add(&mut self, mut item: T) {
+        if self.is_server {
+            item.set_state(ItemState::Neutral);
+        } else {
+            item.set_state(ItemState::New);
+        }
+        self.items.push(item);
     }
 
-    impl<T: MtcItem + PartialEq + Clone> MtcList<T> {
-        pub fn new(is_server: bool) -> MtcList<T> {
-            MtcList {
-                items: Vec::new(),
-                is_server,
+    /// Marks a MtcItem of a given index to be removed. Returns Err(&str) if index is out of bounds.
+    pub fn mark_removed(&mut self, index: usize) -> Result<(), &str> {
+        if let Some(item) = self.items.get_mut(index) {
+            if !self.is_server {
+                item.set_state(ItemState::Removed);
+            } else {
+                drop(item);
+                self.items.remove(index);
+            }
+            Ok(())
+        } else {
+            Err("No item with the given id found")
+        }
+    }
+
+    /// Returns a new vector containing references to all items within this list in the same order.
+    pub fn items(&self) -> Vec<&T> {
+        let mut new = Vec::new();
+
+        for item in &self.items {
+            new.push(item);
+        }
+
+        new
+    }
+
+    /// Returns a new vectro containing references to all items that are for a given date.
+    pub fn items_for_date(&self, date: NaiveDate) -> Vec<&T> {
+        let mut out = Vec::new();
+
+        for item in self.items.iter() {
+            if item.for_date(date) {
+                out.push(item);
             }
         }
 
-        pub fn add(&mut self, mut item: T) {
-            if self.is_server {
+        out
+    }
+
+    /// Return a new vector containing references to all items that are for today.
+    pub fn items_for_today(&self) -> Vec<&T> {
+        let mut out = Vec::new();
+
+        for item in self.items.iter() {
+            if item.for_today() {
+                out.push(item);
+            }
+        }
+
+        out
+    }
+
+    /// Return a vector containing references to all items that are for a given weekday.
+    pub fn items_for_weekday(&self, weekday: Weekday) -> Vec<&T> {
+        let mut out = Vec::new();
+
+        for item in self.items.iter() {
+            if item.for_weekday(weekday) {
+                out.push(item);
+            }
+        }
+
+        out
+    }
+
+    /// Synchronizes the list with itself by removing all items with the Removed state and setting the state of the rest to Neutral.
+    pub fn sync_self(&mut self) {
+        let mut removed = Vec::new();
+
+        for (i, item) in self.items.iter_mut().enumerate() {
+            if item.state() == ItemState::Removed {
+                removed.push(i);
+            } else {
                 item.set_state(ItemState::Neutral);
-            } else {
-                item.set_state(ItemState::New);
-            }
-            self.items.push(item);
-        }
-
-        pub fn mark_removed(&mut self, id: usize) -> Result<(), &str> {
-            if let Some(item) = self.items.get_mut(id) {
-                if !self.is_server {
-                    item.set_state(ItemState::Removed);
-                } else {
-                    drop(item);
-                    self.items.remove(id);
-                }
-                Ok(())
-            } else {
-                Err("No item with the given id found")
             }
         }
 
-        pub fn items(&self) -> &Vec<T> {
-            &self.items
+        removed.sort();
+        while let Some(r) = removed.pop() {
+            self.items.remove(r);
+        }
+    }
+
+    /// Synchronizes this MtcList with the other MtcList.
+    /// Either one of these lists is expected to be a server and the other a client.
+    /// Removes items that are marked for removal.
+    /// # Panics
+    /// If neither one of the lists is a server or if both are servers.
+    pub fn sync(&mut self, other: &mut MtcList<T>) {
+        if self.is_server && other.is_server {
+            panic!("Both self and other are servers.");
+        } else if !self.is_server && !other.is_server {
+            panic!("Neither self or other is a server.");
         }
 
-        pub fn items_for_date(&self, date: NaiveDate) -> Vec<&T> {
-            let mut out = Vec::new();
-
-            for item in self.items.iter() {
-                if item.for_date(date) {
-                    out.push(item);
-                }
-            }
-
-            out
+        let server_list;
+        let client_list;
+        if self.is_server {
+            server_list = self;
+            client_list = other
+        } else {
+            server_list = other;
+            client_list = self;
         }
 
-        pub fn items_for_today(&self) -> Vec<&T> {
-            let mut out = Vec::new();
-
-            for item in self.items.iter() {
-                if item.for_today() {
-                    out.push(item);
-                }
-            }
-
-            out
-        }
-
-        pub fn items_for_weekday(&self, weekday: Weekday) -> Vec<&T> {
-            let mut out = Vec::new();
-
-            for item in self.items.iter() {
-                if item.for_weekday(weekday) {
-                    out.push(item);
-                }
-            }
-
-            out
-        }
-
-        pub fn sync_self(&mut self) {
-            let mut removed = Vec::new();
-
-            for (i, item) in self.items.iter_mut().enumerate() {
-                if item.state() == ItemState::Removed {
-                    removed.push(i);
-                } else {
-                    item.set_state(ItemState::Neutral);
-                }
-            }
-
-            removed.sort();
-            while let Some(r) = removed.pop() {
-                self.items.remove(r);
-            }
-        }
-
-        /// Synchronizes this MtcList with the other MtcList.
-        /// Either one of these lists is expected to be a server and the other a client.
-        /// Removes items that are marked for removal.
-        /// # Panics
-        /// If neither one of the lists is a server or if both are servers.
-        pub fn sync(&mut self, other: &mut MtcList<T>) {
-            if self.is_server && other.is_server {
-                panic!("Both self and other are servers.");
-            } else if !self.is_server && !other.is_server {
-                panic!("Neither self or other is a server.");
-            }
-
-            let server_list;
-            let client_list;
-            if self.is_server {
-                server_list = self;
-                client_list = other
-            } else {
-                server_list = other;
-                client_list = self;
-            }
-
-            for item in client_list.items.iter_mut() {
-                match item.state() {
-                    ItemState::Removed => {
-                        for elem in server_list.items.iter_mut() {
-                            if elem.ignore_state_eq(item) && elem.state() != ItemState::Removed {
-                                elem.set_state(ItemState::Removed);
-                                break;
-                            }
+        for item in client_list.items.iter_mut() {
+            match item.state() {
+                ItemState::Removed => {
+                    for elem in server_list.items.iter_mut() {
+                        if elem.ignore_state_eq(item) && elem.state() != ItemState::Removed {
+                            elem.set_state(ItemState::Removed);
+                            break;
                         }
                     }
-                    ItemState::New => {
-                        server_list.add(item.clone());
-                    }
-                    ItemState::Neutral => {
-                        if server_list
-                            .items
-                            .iter()
-                            .position(|elem| elem.ignore_state_eq(item))
-                            .is_none()
-                        {
-                            item.set_state(ItemState::Removed);
-                        }
-                    }
-                };
-            }
-
-            for item in server_list.items.iter() {
-                if item.state() != ItemState::Removed
-                    && client_list
+                }
+                ItemState::New => {
+                    server_list.add(item.clone());
+                }
+                ItemState::Neutral => {
+                    if server_list
                         .items
                         .iter()
-                        .position(|elem| {
-                            elem.ignore_state_eq(item) && elem.state() != ItemState::Removed
-                        })
+                        .position(|elem| elem.ignore_state_eq(item))
                         .is_none()
-                {
-                    client_list.add(item.clone());
+                    {
+                        item.set_state(ItemState::Removed);
+                    }
                 }
+            };
+        }
+
+        for item in server_list.items.iter() {
+            if item.state() != ItemState::Removed
+                && client_list
+                    .items
+                    .iter()
+                    .position(|elem| {
+                        elem.ignore_state_eq(item) && elem.state() != ItemState::Removed
+                    })
+                    .is_none()
+            {
+                client_list.add(item.clone());
             }
-
-            client_list.sync_self();
-            server_list.sync_self();
         }
-    }
-}
 
-/// A short term task that should be done on a optionally given weekday.
-#[derive(Debug, PartialEq, Clone)]
-pub struct TodoItem {
-    weekday: Option<Weekday>,
-    body: String,
-    state: ItemState,
-}
-
-/// A repetitive task with a duration in minutes for a optionally given day.
-#[derive(Debug, PartialEq, Clone)]
-pub struct Task {
-    weekday: Option<Weekday>,
-    body: String,
-    duration: u32,
-    state: ItemState,
-}
-
-/// An event that will happen on a given date and optionally a time.
-#[derive(Debug, PartialEq, Clone)]
-pub struct Event {
-    date: NaiveDate,
-    time: Option<NaiveTime>,
-    body: String,
-    state: ItemState,
-}
-
-impl TodoItem {
-    /// Creates a new `TodoItem` with a given body and optionally a weekday.
-    pub fn new(body: String, weekday: Option<Weekday>) -> TodoItem {
-        TodoItem {
-            weekday,
-            body,
-            state: ItemState::Neutral,
-        }
-    }
-
-    /// Returns a reference to the body of the `TodoItem`.
-    pub fn body(&self) -> &String {
-        &self.body
-    }
-
-    /// Returns a optionally specified weekday of the `TodoItem`.
-    pub fn weekday(&self) -> Option<Weekday> {
-        self.weekday
-    }
-
-    /// Sets the optional weekday of the `TodoItem`.
-    pub fn set_weekday(&mut self, new_weekday: Option<Weekday>) {
-        self.weekday = new_weekday;
-    }
-}
-
-impl Task {
-    /// Creates a new `Task` with a given body, duration in minutes and optionally a weekday.
-    pub fn new(body: String, duration: u32, weekday: Option<Weekday>) -> Task {
-        Task {
-            weekday,
-            body,
-            duration,
-            state: ItemState::Neutral,
-        }
-    }
-
-    /// Returns a reference to the body of the `Task`.
-    pub fn body(&self) -> &String {
-        &self.body
-    }
-
-    /// Returns the optionally specified weekday of the `Task`.
-    pub fn weekday(&self) -> Option<Weekday> {
-        self.weekday
-    }
-
-    /// Returns the duration of the `Task`.
-    pub fn duration(&self) -> u32 {
-        self.duration
-    }
-
-    /// Sets the optional weekday of the `Task`.
-    pub fn set_weekday(&mut self, new_weekday: Option<Weekday>) {
-        self.weekday = new_weekday;
-    }
-}
-
-impl Event {
-    /// Creates a new `Event` with a given body, date and optionally a time.
-    pub fn new(body: String, date: NaiveDate, time: Option<NaiveTime>) -> Event {
-        Event {
-            body,
-            date,
-            time,
-            state: ItemState::Neutral,
-        }
-    }
-
-    /// Returns a reference to the body of the `Event`.
-    pub fn body(&self) -> &String {
-        &self.body
-    }
-
-    /// Returns the date of the `Event`.
-    pub fn date(&self) -> NaiveDate {
-        self.date
-    }
-
-    /// Sets the date of the `Event`.
-    pub fn set_date(&mut self, new_date: NaiveDate) {
-        self.date = new_date;
-    }
-
-    /// Returns the optinal time of the `Event`.
-    pub fn time(&self) -> Option<NaiveTime> {
-        self.time
-    }
-
-    /// Sets the optional time of the `Event`.
-    pub fn set_time(&mut self, new_time: Option<NaiveTime>) {
-        self.time = new_time;
-    }
-}
-
-impl MtcItem for TodoItem {
-    /// Returns true if the `TodoItem` is for a given date.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use chrono::prelude::*;
-    /// use mtc::{TodoItem, MtcItem};
-    ///
-    /// let item = TodoItem::new("Do task A".to_string(), Some(Weekday::Mon));
-    ///
-    /// // 2021.12.6 was a monday.
-    /// assert!(item.for_date(NaiveDate::from_ymd(2021, 12, 6)));
-    /// assert!(!item.for_date(NaiveDate::from_ymd(2021, 12, 5)));
-    /// ```
-    fn for_date(&self, date: NaiveDate) -> bool {
-        match self.weekday {
-            Some(day) => day == date.weekday(),
-            None => true,
-        }
-    }
-    fn state(&self) -> sync::ItemState {
-        self.state
-    }
-    fn set_state(&mut self, new_state: sync::ItemState) {
-        self.state = new_state;
-    }
-    fn ignore_state_eq(&self, _: &TodoItem) -> bool {
-        todo!()
-    }
-}
-
-impl MtcItem for Task {
-    /// Returns true if the `Task` is for a given date.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use chrono::prelude::*;
-    /// use mtc::{Task, MtcItem};
-    ///
-    /// let item = Task::new("Exercise".to_string(), 60, Some(Weekday::Mon));
-    ///
-    /// // 2021.12.6 was a monday.
-    /// assert!(item.for_date(NaiveDate::from_ymd(2021, 12, 6)));
-    /// assert!(!item.for_date(NaiveDate::from_ymd(2021, 12, 5)));
-    /// ```
-    fn for_date(&self, date: NaiveDate) -> bool {
-        match self.weekday {
-            Some(day) => day == date.weekday(),
-            None => true,
-        }
-    }
-    fn state(&self) -> sync::ItemState {
-        self.state
-    }
-    fn set_state(&mut self, new_state: sync::ItemState) {
-        self.state = new_state;
-    }
-    fn ignore_state_eq(&self, _: &Task) -> bool {
-        todo!()
-    }
-}
-
-impl MtcItem for Event {
-    /// Returns true if the `Event` is for a given date.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use chrono::prelude::*;
-    /// use mtc::{Event, MtcItem};
-    ///
-    /// let item = Event::new("Do task A".to_string(), NaiveDate::from_ymd(2021, 11, 30), None);
-    ///
-    /// assert!(item.for_date(NaiveDate::from_ymd(2021, 11, 30)));
-    /// assert!(!item.for_date(NaiveDate::from_ymd(2021, 12, 6)));
-    /// ```
-    fn for_date(&self, date: NaiveDate) -> bool {
-        self.date == date
-    }
-    fn state(&self) -> sync::ItemState {
-        self.state
-    }
-    fn set_state(&mut self, new_state: sync::ItemState) {
-        self.state = new_state;
-    }
-    fn ignore_state_eq(&self, _: &Self) -> bool {
-        todo!()
+        client_list.sync_self();
+        server_list.sync_self();
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sync::MtcList;
-
-    #[test]
-    fn todo_item_for_date_returns_true() {
-        let date = NaiveDate::from_ymd(2021, 12, 6);
-        let ti = TodoItem::new("test".to_string(), Some(Weekday::Mon));
-
-        assert!(ti.for_date(date));
-    }
-
-    #[test]
-    fn todo_item_for_date_returns_false() {
-        let date = NaiveDate::from_ymd(2021, 12, 6);
-        let ti = TodoItem::new("test".to_string(), Some(Weekday::Tue));
-
-        assert!(!ti.for_date(date));
-    }
-
-    #[test]
-    fn task_for_date_returns_true() {
-        let date = NaiveDate::from_ymd(2021, 12, 6);
-        let ti = Task::new("test".to_string(), 50, None);
-
-        assert!(ti.for_date(date));
-    }
-
-    #[test]
-    fn task_for_date_returns_false() {
-        let date = NaiveDate::from_ymd(2021, 12, 6);
-        let ti = Task::new("test".to_string(), 50, Some(Weekday::Fri));
-
-        assert!(!ti.for_date(date));
-    }
-
-    #[test]
-    fn event_for_date_returns_true() {
-        let date = NaiveDate::from_ymd(2021, 12, 6);
-        let ti = Event::new("test".to_string(), NaiveDate::from_ymd(2021, 12, 6), None);
-
-        assert!(ti.for_date(date));
-    }
-
-    #[test]
-    fn event_for_date_returns_false() {
-        let date = NaiveDate::from_ymd(2021, 12, 6);
-        let ti = Event::new("test".to_string(), NaiveDate::from_ymd(2021, 12, 5), None);
-
-        assert!(!ti.for_date(date));
-    }
 
     #[test]
     fn mtc_item_for_today_returns_true() {
@@ -530,10 +299,10 @@ mod tests {
             fn for_date(&self, date: NaiveDate) -> bool {
                 date == Local::today().naive_local()
             }
-            fn state(&self) -> sync::ItemState {
+            fn state(&self) -> ItemState {
                 todo!()
             }
-            fn set_state(&mut self, _: sync::ItemState) {
+            fn set_state(&mut self, _: ItemState) {
                 todo!()
             }
             fn ignore_state_eq(&self, _: &Self) -> bool {
@@ -553,10 +322,10 @@ mod tests {
             fn for_date(&self, date: NaiveDate) -> bool {
                 date != Local::today().naive_local()
             }
-            fn state(&self) -> sync::ItemState {
+            fn state(&self) -> ItemState {
                 todo!()
             }
-            fn set_state(&mut self, _: sync::ItemState) {
+            fn set_state(&mut self, _: ItemState) {
                 todo!()
             }
             fn ignore_state_eq(&self, _: &Self) -> bool {
@@ -576,10 +345,10 @@ mod tests {
             fn for_date(&self, date: NaiveDate) -> bool {
                 date.weekday() == Weekday::Mon
             }
-            fn state(&self) -> sync::ItemState {
+            fn state(&self) -> ItemState {
                 todo!()
             }
-            fn set_state(&mut self, _: sync::ItemState) {
+            fn set_state(&mut self, _: ItemState) {
                 todo!()
             }
             fn ignore_state_eq(&self, _: &Self) -> bool {
@@ -599,10 +368,10 @@ mod tests {
             fn for_date(&self, date: NaiveDate) -> bool {
                 date == NaiveDate::from_ymd(2021, 12, 6)
             }
-            fn state(&self) -> sync::ItemState {
+            fn state(&self) -> ItemState {
                 todo!()
             }
-            fn set_state(&mut self, _: sync::ItemState) {
+            fn set_state(&mut self, _: ItemState) {
                 todo!()
             }
             fn ignore_state_eq(&self, _: &Self) -> bool {
@@ -616,7 +385,7 @@ mod tests {
     }
 
     #[test]
-    fn mtc_items_date_returns_expected() {
+    fn mtc_list_for_date_returns_expected() {
         let mut list = MtcList::new(true);
         list.add(TodoItem::new("test0".to_string(), None));
         list.add(TodoItem::new("test1".to_string(), Some(Weekday::Tue)));
@@ -642,7 +411,7 @@ mod tests {
     }
 
     #[test]
-    fn mtc_items_today_returns_expected() {
+    fn mtc_list_for_today_returns_expected() {
         let today = Local::now().weekday();
 
         let mut items = MtcList::new(true);
@@ -650,7 +419,11 @@ mod tests {
         items.add(Task::new("test1".to_string(), 30, Some(today)));
         items.add(Task::new("test2".to_string(), 10, Some(today.pred())));
         items.add(Task::new("test3".to_string(), 0, None));
-        items.add(Task::new("test4".to_string(), 90, Some(today.succ().succ())));
+        items.add(Task::new(
+            "test4".to_string(),
+            90,
+            Some(today.succ().succ()),
+        ));
 
         let expected = vec![
             Task::new("test0".to_string(), 40, Some(today)),
@@ -664,7 +437,7 @@ mod tests {
     }
 
     #[test]
-    fn mtc_items_weekday_returns_expected() {
+    fn mtc_list_for_weekday_returns_expected() {
         let mut items = MtcList::new(true);
         items.add(Task::new("test0".to_string(), 40, Some(Weekday::Fri)));
         items.add(Task::new("test1".to_string(), 30, Some(Weekday::Fri)));
@@ -678,7 +451,8 @@ mod tests {
             Task::new("test3".to_string(), 0, None),
         ];
 
-        let result: Vec<Task> = items.items_for_weekday(Weekday::Fri)
+        let result: Vec<Task> = items
+            .items_for_weekday(Weekday::Fri)
             .iter()
             .cloned()
             .cloned()
@@ -688,15 +462,43 @@ mod tests {
     }
 
     #[test]
-    fn mtc_items_date_returns_expected_for_events() {
+    fn mtc_list_for_date_returns_expected_for_events() {
         let mut items = MtcList::new(true);
-        items.add(Event::new("test0".to_string(), NaiveDate::from_ymd(2021, 10, 5), None));
-        items.add(Event::new("test1".to_string(), NaiveDate::from_ymd(2021, 11, 5), None));
-        items.add(Event::new("test2".to_string(), NaiveDate::from_ymd(2021, 10, 6), None));
-        items.add(Event::new("test3".to_string(), NaiveDate::from_ymd(2021, 10, 5), None));
-        items.add(Event::new("test4".to_string(), NaiveDate::from_ymd(2021, 10, 5), None));
-        items.add(Event::new("test5".to_string(), NaiveDate::from_ymd(2020, 10, 5), None));
-        items.add(Event::new("test6".to_string(), NaiveDate::from_ymd(2020, 11, 30), None));
+        items.add(Event::new(
+            "test0".to_string(),
+            NaiveDate::from_ymd(2021, 10, 5),
+            None,
+        ));
+        items.add(Event::new(
+            "test1".to_string(),
+            NaiveDate::from_ymd(2021, 11, 5),
+            None,
+        ));
+        items.add(Event::new(
+            "test2".to_string(),
+            NaiveDate::from_ymd(2021, 10, 6),
+            None,
+        ));
+        items.add(Event::new(
+            "test3".to_string(),
+            NaiveDate::from_ymd(2021, 10, 5),
+            None,
+        ));
+        items.add(Event::new(
+            "test4".to_string(),
+            NaiveDate::from_ymd(2021, 10, 5),
+            None,
+        ));
+        items.add(Event::new(
+            "test5".to_string(),
+            NaiveDate::from_ymd(2020, 10, 5),
+            None,
+        ));
+        items.add(Event::new(
+            "test6".to_string(),
+            NaiveDate::from_ymd(2020, 11, 30),
+            None,
+        ));
 
         let expected = vec![
             Event::new("test0".to_string(), NaiveDate::from_ymd(2021, 10, 5), None),
@@ -704,7 +506,8 @@ mod tests {
             Event::new("test4".to_string(), NaiveDate::from_ymd(2021, 10, 5), None),
         ];
 
-        let result: Vec<Event> = items.items_for_date(NaiveDate::from_ymd(2021, 10, 5))
+        let result: Vec<Event> = items
+            .items_for_date(NaiveDate::from_ymd(2021, 10, 5))
             .iter()
             .cloned()
             .cloned()
@@ -713,368 +516,363 @@ mod tests {
         assert_eq!(result, expected);
     }
 
-    mod mtc_list_tests {
-        use super::*;
-        use crate::sync::*;
+    #[derive(Debug, PartialEq, Clone)]
+    struct TestMtcItem {
+        state: ItemState,
+        body: String,
+    }
 
-        #[derive(Debug, PartialEq, Clone)]
-        struct TestMtcItem {
-            state: ItemState,
-            body: String,
+    impl Ord for TestMtcItem {
+        fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+            self.body.cmp(&other.body)
         }
+    }
 
-        impl Ord for TestMtcItem {
-            fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-                self.body.cmp(&other.body)
+    impl PartialOrd for TestMtcItem {
+        fn partial_cmp(&self, other: &Self) -> std::option::Option<std::cmp::Ordering> {
+            Some(self.body.cmp(&other.body))
+        }
+    }
+
+    impl Eq for TestMtcItem {}
+
+    impl TestMtcItem {
+        fn new(body: String) -> TestMtcItem {
+            TestMtcItem {
+                state: ItemState::Neutral,
+                body,
             }
         }
+    }
 
-        impl PartialOrd for TestMtcItem {
-            fn partial_cmp(&self, other: &Self) -> std::option::Option<std::cmp::Ordering> {
-                Some(self.body.cmp(&other.body))
-            }
+    impl MtcItem for TestMtcItem {
+        fn for_date(&self, _: chrono::NaiveDate) -> bool {
+            todo!()
         }
-
-        impl Eq for TestMtcItem {}
-
-        impl TestMtcItem {
-            fn new(body: String) -> TestMtcItem {
-                TestMtcItem {
-                    state: ItemState::Neutral,
-                    body,
-                }
-            }
+        fn state(&self) -> ItemState {
+            self.state
         }
-
-        impl MtcItem for TestMtcItem {
-            fn for_date(&self, _: chrono::NaiveDate) -> bool {
-                todo!()
-            }
-            fn state(&self) -> sync::ItemState {
-                self.state
-            }
-            fn set_state(&mut self, state: sync::ItemState) {
-                self.state = state;
-            }
-            fn ignore_state_eq(&self, other: &Self) -> bool {
-                self.body == other.body
-            }
+        fn set_state(&mut self, state: ItemState) {
+            self.state = state;
         }
-
-        #[test]
-        fn mtc_list_server_all_neutral() {
-            let mut list = MtcList::new(true);
-
-            list.add(TestMtcItem::new("Item 0".to_string()));
-            list.add(TestMtcItem::new("Item 1".to_string()));
-            list.add(TestMtcItem::new("Item 2".to_string()));
-
-            let mut exp: Vec<TestMtcItem> = vec![
-                TestMtcItem::new("Item 0".to_string()),
-                TestMtcItem::new("Item 1".to_string()),
-                TestMtcItem::new("Item 2".to_string()),
-            ];
-            exp.iter_mut().for_each(|x| {
-                x.set_state(ItemState::Neutral);
-            });
-
-            let mut sorted = list.items().to_owned();
-            sorted.sort();
-
-            assert_eq!(sorted, exp);
+        fn ignore_state_eq(&self, other: &Self) -> bool {
+            self.body == other.body
         }
+    }
 
-        #[test]
-        fn mtc_list_self_sync_removes_marked_and_sets_new_neutral() {
-            let mut list = MtcList::new(false);
+    #[test]
+    fn mtc_list_server_all_neutral() {
+        let mut list = MtcList::new(true);
 
-            list.add(TestMtcItem::new("Item 0".to_string()));
-            list.add(TestMtcItem::new("Item 1".to_string()));
-            list.add(TestMtcItem::new("Item 2".to_string()));
-            list.add(TestMtcItem::new("Item 3".to_string()));
-            list.add(TestMtcItem::new("Item 4".to_string()));
+        list.add(TestMtcItem::new("Item 0".to_string()));
+        list.add(TestMtcItem::new("Item 1".to_string()));
+        list.add(TestMtcItem::new("Item 2".to_string()));
 
-            list.mark_removed(1).unwrap();
-            list.mark_removed(2).unwrap();
+        let mut exp: Vec<TestMtcItem> = vec![
+            TestMtcItem::new("Item 0".to_string()),
+            TestMtcItem::new("Item 1".to_string()),
+            TestMtcItem::new("Item 2".to_string()),
+        ];
+        exp.iter_mut().for_each(|x| {
+            x.set_state(ItemState::Neutral);
+        });
 
-            list.sync_self();
+        let mut sorted: Vec<TestMtcItem> = list.items().iter().cloned().cloned().collect();
+        sorted.sort();
 
-            let mut exp: Vec<TestMtcItem> = vec![
-                TestMtcItem::new("Item 0".to_string()),
-                TestMtcItem::new("Item 3".to_string()),
-                TestMtcItem::new("Item 4".to_string()),
-            ];
-            exp.iter_mut().for_each(|x| {
-                x.set_state(ItemState::Neutral);
-            });
+        assert_eq!(sorted, exp);
+    }
 
-            let mut sorted = list.items().to_owned();
-            sorted.sort();
+    #[test]
+    fn mtc_list_self_sync_removes_marked_and_sets_new_neutral() {
+        let mut list = MtcList::new(false);
 
-            assert_eq!(sorted, exp);
-        }
+        list.add(TestMtcItem::new("Item 0".to_string()));
+        list.add(TestMtcItem::new("Item 1".to_string()));
+        list.add(TestMtcItem::new("Item 2".to_string()));
+        list.add(TestMtcItem::new("Item 3".to_string()));
+        list.add(TestMtcItem::new("Item 4".to_string()));
 
-        #[test]
-        fn mtc_list_sync_removes_marked_from_server() {
-            let mut client_list = MtcList::new(false);
-            let mut server_list = MtcList::new(true);
+        list.mark_removed(1).unwrap();
+        list.mark_removed(2).unwrap();
 
-            client_list.add(TestMtcItem::new("Item 0".to_string()));
-            client_list.add(TestMtcItem::new("Item 1".to_string()));
-            client_list.add(TestMtcItem::new("Item 2".to_string()));
+        list.sync_self();
 
-            client_list.sync_self();
+        let mut exp: Vec<TestMtcItem> = vec![
+            TestMtcItem::new("Item 0".to_string()),
+            TestMtcItem::new("Item 3".to_string()),
+            TestMtcItem::new("Item 4".to_string()),
+        ];
+        exp.iter_mut().for_each(|x| {
+            x.set_state(ItemState::Neutral);
+        });
 
-            client_list.mark_removed(1).unwrap();
-            client_list.mark_removed(2).unwrap();
+        let mut sorted: Vec<TestMtcItem> = list.items().iter().cloned().cloned().collect();
+        sorted.sort();
 
-            server_list.add(TestMtcItem::new("Item 0".to_string()));
-            server_list.add(TestMtcItem::new("Item 1".to_string()));
+        assert_eq!(sorted, exp);
+    }
 
-            client_list.sync(&mut server_list);
+    #[test]
+    fn mtc_list_sync_removes_marked_from_server() {
+        let mut client_list = MtcList::new(false);
+        let mut server_list = MtcList::new(true);
 
-            let mut exp: Vec<TestMtcItem> = vec![TestMtcItem::new("Item 0".to_string())];
-            exp.iter_mut().for_each(|x| {
-                x.set_state(ItemState::Neutral);
-            });
+        client_list.add(TestMtcItem::new("Item 0".to_string()));
+        client_list.add(TestMtcItem::new("Item 1".to_string()));
+        client_list.add(TestMtcItem::new("Item 2".to_string()));
 
-            let mut sorted = client_list.items().to_owned();
-            sorted.sort();
+        client_list.sync_self();
 
-            assert_eq!(sorted, exp);
-            let mut sorted = server_list.items().to_owned();
-            sorted.sort();
+        client_list.mark_removed(1).unwrap();
+        client_list.mark_removed(2).unwrap();
 
-            assert_eq!(sorted, exp);
-        }
+        server_list.add(TestMtcItem::new("Item 0".to_string()));
+        server_list.add(TestMtcItem::new("Item 1".to_string()));
 
-        #[test]
-        fn mtc_list_sync_removes_marked_from_server_only_once() {
-            let mut client_list = MtcList::new(false);
-            let mut server_list = MtcList::new(true);
+        client_list.sync(&mut server_list);
 
-            client_list.add(TestMtcItem::new("Item 0".to_string()));
-            client_list.add(TestMtcItem::new("Item 1".to_string()));
+        let mut exp: Vec<TestMtcItem> = vec![TestMtcItem::new("Item 0".to_string())];
+        exp.iter_mut().for_each(|x| {
+            x.set_state(ItemState::Neutral);
+        });
 
-            client_list.sync_self();
+        let mut sorted: Vec<TestMtcItem> = client_list.items().iter().cloned().cloned().collect();
+        sorted.sort();
 
-            client_list.mark_removed(1).unwrap();
+        assert_eq!(sorted, exp);
+        let mut sorted: Vec<TestMtcItem> = server_list.items().iter().cloned().cloned().collect();
+        sorted.sort();
 
-            server_list.add(TestMtcItem::new("Item 0".to_string()));
-            server_list.add(TestMtcItem::new("Item 1".to_string()));
-            server_list.add(TestMtcItem::new("Item 1".to_string()));
+        assert_eq!(sorted, exp);
+    }
 
-            server_list.sync(&mut client_list);
+    #[test]
+    fn mtc_list_sync_removes_marked_from_server_only_once() {
+        let mut client_list = MtcList::new(false);
+        let mut server_list = MtcList::new(true);
 
-            let mut exp: Vec<TestMtcItem> = vec![
-                TestMtcItem::new("Item 0".to_string()),
-                TestMtcItem::new("Item 1".to_string()),
-            ];
-            exp.iter_mut().for_each(|x| {
-                x.set_state(ItemState::Neutral);
-            });
+        client_list.add(TestMtcItem::new("Item 0".to_string()));
+        client_list.add(TestMtcItem::new("Item 1".to_string()));
 
-            let mut sorted = client_list.items().to_owned();
-            sorted.sort();
+        client_list.sync_self();
 
-            assert_eq!(sorted, exp);
-            let mut sorted = server_list.items().to_owned();
-            sorted.sort();
+        client_list.mark_removed(1).unwrap();
 
-            assert_eq!(sorted, exp);
-        }
+        server_list.add(TestMtcItem::new("Item 0".to_string()));
+        server_list.add(TestMtcItem::new("Item 1".to_string()));
+        server_list.add(TestMtcItem::new("Item 1".to_string()));
 
-        #[test]
-        fn mtc_list_sync_removes_marked_from_server_equal_times() {
-            let mut client_list = MtcList::new(false);
-            let mut server_list = MtcList::new(true);
+        server_list.sync(&mut client_list);
 
-            client_list.add(TestMtcItem::new("Item 0".to_string()));
+        let mut exp: Vec<TestMtcItem> = vec![
+            TestMtcItem::new("Item 0".to_string()),
+            TestMtcItem::new("Item 1".to_string()),
+        ];
+        exp.iter_mut().for_each(|x| {
+            x.set_state(ItemState::Neutral);
+        });
 
-            client_list.sync_self();
+        let mut sorted: Vec<TestMtcItem> = client_list.items().iter().cloned().cloned().collect();
+        sorted.sort();
 
-            client_list.add(TestMtcItem::new("Item 1".to_string()));
-            client_list.add(TestMtcItem::new("Item 1".to_string()));
+        assert_eq!(sorted, exp);
+        let mut sorted: Vec<TestMtcItem> = server_list.items().iter().cloned().cloned().collect();
+        sorted.sort();
 
-            client_list.mark_removed(1).unwrap();
-            client_list.mark_removed(2).unwrap();
+        assert_eq!(sorted, exp);
+    }
 
-            server_list.add(TestMtcItem::new("Item 0".to_string()));
-            server_list.add(TestMtcItem::new("Item 1".to_string()));
-            server_list.add(TestMtcItem::new("Item 1".to_string()));
+    #[test]
+    fn mtc_list_sync_removes_marked_from_server_equal_times() {
+        let mut client_list = MtcList::new(false);
+        let mut server_list = MtcList::new(true);
 
-            client_list.sync(&mut server_list);
+        client_list.add(TestMtcItem::new("Item 0".to_string()));
 
-            let mut exp: Vec<TestMtcItem> = vec![TestMtcItem::new("Item 0".to_string())];
-            exp.iter_mut().for_each(|x| {
-                x.set_state(ItemState::Neutral);
-            });
+        client_list.sync_self();
 
-            let mut sorted = client_list.items().to_owned();
-            sorted.sort();
+        client_list.add(TestMtcItem::new("Item 1".to_string()));
+        client_list.add(TestMtcItem::new("Item 1".to_string()));
 
-            assert_eq!(sorted, exp);
-            let mut sorted = server_list.items().to_owned();
-            sorted.sort();
+        client_list.mark_removed(1).unwrap();
+        client_list.mark_removed(2).unwrap();
 
-            assert_eq!(sorted, exp);
-        }
+        server_list.add(TestMtcItem::new("Item 0".to_string()));
+        server_list.add(TestMtcItem::new("Item 1".to_string()));
+        server_list.add(TestMtcItem::new("Item 1".to_string()));
 
-        #[test]
-        fn mtc_list_sync_removes_nonnew_from_client() {
-            let mut client_list = MtcList::new(false);
-            let mut server_list = MtcList::new(true);
+        client_list.sync(&mut server_list);
 
-            client_list.add(TestMtcItem::new("Item 0".to_string()));
-            client_list.add(TestMtcItem::new("Item 1".to_string()));
-            client_list.add(TestMtcItem::new("Item 2".to_string()));
+        let mut exp: Vec<TestMtcItem> = vec![TestMtcItem::new("Item 0".to_string())];
+        exp.iter_mut().for_each(|x| {
+            x.set_state(ItemState::Neutral);
+        });
 
-            client_list.sync_self(); // Set items to neutral
+        let mut sorted: Vec<TestMtcItem> = client_list.items().iter().cloned().cloned().collect();
+        sorted.sort();
 
-            server_list.add(TestMtcItem::new("Item 2".to_string()));
+        assert_eq!(sorted, exp);
+        let mut sorted: Vec<TestMtcItem> = server_list.items().iter().cloned().cloned().collect();
+        sorted.sort();
 
-            server_list.sync(&mut client_list);
+        assert_eq!(sorted, exp);
+    }
 
-            let mut exp: Vec<TestMtcItem> = vec![TestMtcItem::new("Item 2".to_string())];
-            exp.iter_mut().for_each(|x| {
-                x.set_state(ItemState::Neutral);
-            });
+    #[test]
+    fn mtc_list_sync_removes_nonnew_from_client() {
+        let mut client_list = MtcList::new(false);
+        let mut server_list = MtcList::new(true);
 
-            let mut sorted = client_list.items().to_owned();
-            sorted.sort();
+        client_list.add(TestMtcItem::new("Item 0".to_string()));
+        client_list.add(TestMtcItem::new("Item 1".to_string()));
+        client_list.add(TestMtcItem::new("Item 2".to_string()));
 
-            assert_eq!(sorted, exp);
-            let mut sorted = server_list.items().to_owned();
-            sorted.sort();
+        client_list.sync_self(); // Set items to neutral
 
-            assert_eq!(sorted, exp);
-        }
+        server_list.add(TestMtcItem::new("Item 2".to_string()));
 
-        #[test]
-        fn mtc_list_sync_adds_new_from_client() {
-            let mut client_list = MtcList::new(false);
-            let mut server_list = MtcList::new(true);
+        server_list.sync(&mut client_list);
 
-            client_list.add(TestMtcItem::new("Item 0".to_string()));
+        let mut exp: Vec<TestMtcItem> = vec![TestMtcItem::new("Item 2".to_string())];
+        exp.iter_mut().for_each(|x| {
+            x.set_state(ItemState::Neutral);
+        });
 
-            client_list.sync_self();
+        let mut sorted: Vec<TestMtcItem> = client_list.items().iter().cloned().cloned().collect();
+        sorted.sort();
 
-            client_list.add(TestMtcItem::new("Item 1".to_string()));
-            client_list.add(TestMtcItem::new("Item 2".to_string()));
+        assert_eq!(sorted, exp);
+        let mut sorted: Vec<TestMtcItem> = server_list.items().iter().cloned().cloned().collect();
+        sorted.sort();
 
-            server_list.add(TestMtcItem::new("Item 0".to_string()));
+        assert_eq!(sorted, exp);
+    }
 
-            client_list.sync(&mut server_list);
+    #[test]
+    fn mtc_list_sync_adds_new_from_client() {
+        let mut client_list = MtcList::new(false);
+        let mut server_list = MtcList::new(true);
 
-            let mut exp: Vec<TestMtcItem> = vec![
-                TestMtcItem::new("Item 0".to_string()),
-                TestMtcItem::new("Item 1".to_string()),
-                TestMtcItem::new("Item 2".to_string()),
-            ];
-            exp.iter_mut().for_each(|x| {
-                x.set_state(ItemState::Neutral);
-            });
+        client_list.add(TestMtcItem::new("Item 0".to_string()));
 
-            let mut sorted = client_list.items().to_owned();
-            sorted.sort();
+        client_list.sync_self();
 
-            assert_eq!(sorted, exp);
-            let mut sorted = server_list.items().to_owned();
-            sorted.sort();
+        client_list.add(TestMtcItem::new("Item 1".to_string()));
+        client_list.add(TestMtcItem::new("Item 2".to_string()));
 
-            assert_eq!(sorted, exp);
-        }
+        server_list.add(TestMtcItem::new("Item 0".to_string()));
 
-        #[test]
-        fn mtc_list_sync_adds_new_from_server() {
-            let mut client_list = MtcList::new(false);
-            let mut server_list = MtcList::new(true);
+        client_list.sync(&mut server_list);
 
-            client_list.add(TestMtcItem::new("Item 0".to_string()));
+        let mut exp: Vec<TestMtcItem> = vec![
+            TestMtcItem::new("Item 0".to_string()),
+            TestMtcItem::new("Item 1".to_string()),
+            TestMtcItem::new("Item 2".to_string()),
+        ];
+        exp.iter_mut().for_each(|x| {
+            x.set_state(ItemState::Neutral);
+        });
 
-            client_list.sync_self();
+        let mut sorted: Vec<TestMtcItem> = client_list.items().iter().cloned().cloned().collect();
+        sorted.sort();
 
-            server_list.add(TestMtcItem::new("Item 0".to_string()));
-            server_list.add(TestMtcItem::new("Item 1".to_string()));
-            server_list.add(TestMtcItem::new("Item 2".to_string()));
+        assert_eq!(sorted, exp);
+        let mut sorted: Vec<TestMtcItem> = server_list.items().iter().cloned().cloned().collect();
+        sorted.sort();
 
-            client_list.sync(&mut server_list);
+        assert_eq!(sorted, exp);
+    }
 
-            let mut exp: Vec<TestMtcItem> = vec![
-                TestMtcItem::new("Item 0".to_string()),
-                TestMtcItem::new("Item 1".to_string()),
-                TestMtcItem::new("Item 2".to_string()),
-            ];
-            exp.iter_mut().for_each(|x| {
-                x.set_state(ItemState::Neutral);
-            });
+    #[test]
+    fn mtc_list_sync_adds_new_from_server() {
+        let mut client_list = MtcList::new(false);
+        let mut server_list = MtcList::new(true);
 
-            let mut sorted = client_list.items().to_owned();
-            sorted.sort();
+        client_list.add(TestMtcItem::new("Item 0".to_string()));
 
-            assert_eq!(sorted, exp);
-            let mut sorted = server_list.items().to_owned();
-            sorted.sort();
+        client_list.sync_self();
 
-            assert_eq!(sorted, exp);
-        }
+        server_list.add(TestMtcItem::new("Item 0".to_string()));
+        server_list.add(TestMtcItem::new("Item 1".to_string()));
+        server_list.add(TestMtcItem::new("Item 2".to_string()));
 
-        #[test]
-        fn mtc_list_sync_combines_correctly() {
-            let mut client_list = MtcList::new(false);
-            let mut server_list = MtcList::new(true);
+        client_list.sync(&mut server_list);
 
-            client_list.add(TestMtcItem::new("Item 0".to_string()));
-            client_list.add(TestMtcItem::new("Item 1".to_string()));
-            client_list.add(TestMtcItem::new("Item 2".to_string()));
+        let mut exp: Vec<TestMtcItem> = vec![
+            TestMtcItem::new("Item 0".to_string()),
+            TestMtcItem::new("Item 1".to_string()),
+            TestMtcItem::new("Item 2".to_string()),
+        ];
+        exp.iter_mut().for_each(|x| {
+            x.set_state(ItemState::Neutral);
+        });
 
-            client_list.sync_self();
+        let mut sorted: Vec<TestMtcItem> = client_list.items().iter().cloned().cloned().collect();
+        sorted.sort();
 
-            client_list.add(TestMtcItem::new("Item 3".to_string()));
+        assert_eq!(sorted, exp);
+        let mut sorted: Vec<TestMtcItem> = server_list.items().iter().cloned().cloned().collect();
+        sorted.sort();
 
-            client_list.mark_removed(1).unwrap();
+        assert_eq!(sorted, exp);
+    }
 
-            server_list.add(TestMtcItem::new("Item 0".to_string()));
-            server_list.add(TestMtcItem::new("Item 1".to_string()));
-            server_list.add(TestMtcItem::new("Item 4".to_string()));
+    #[test]
+    fn mtc_list_sync_combines_correctly() {
+        let mut client_list = MtcList::new(false);
+        let mut server_list = MtcList::new(true);
 
-            client_list.sync(&mut server_list);
+        client_list.add(TestMtcItem::new("Item 0".to_string()));
+        client_list.add(TestMtcItem::new("Item 1".to_string()));
+        client_list.add(TestMtcItem::new("Item 2".to_string()));
 
-            let mut exp: Vec<TestMtcItem> = vec![
-                TestMtcItem::new("Item 0".to_string()),
-                TestMtcItem::new("Item 3".to_string()),
-                TestMtcItem::new("Item 4".to_string()),
-            ];
-            exp.iter_mut().for_each(|x| {
-                x.set_state(ItemState::Neutral);
-            });
+        client_list.sync_self();
 
-            let mut sorted = client_list.items().to_owned();
-            sorted.sort();
+        client_list.add(TestMtcItem::new("Item 3".to_string()));
 
-            assert_eq!(sorted, exp);
-            let mut sorted = server_list.items().to_owned();
-            sorted.sort();
+        client_list.mark_removed(1).unwrap();
 
-            assert_eq!(sorted, exp);
-        }
+        server_list.add(TestMtcItem::new("Item 0".to_string()));
+        server_list.add(TestMtcItem::new("Item 1".to_string()));
+        server_list.add(TestMtcItem::new("Item 4".to_string()));
 
-        #[test]
-        #[should_panic]
-        fn mtc_list_panics_if_both_servers() {
-            let mut client: MtcList<TestMtcItem> = MtcList::new(true);
-            let mut client1: MtcList<TestMtcItem> = MtcList::new(true);
+        client_list.sync(&mut server_list);
 
-            client.sync(&mut client1);
-        }
+        let mut exp: Vec<TestMtcItem> = vec![
+            TestMtcItem::new("Item 0".to_string()),
+            TestMtcItem::new("Item 3".to_string()),
+            TestMtcItem::new("Item 4".to_string()),
+        ];
+        exp.iter_mut().for_each(|x| {
+            x.set_state(ItemState::Neutral);
+        });
 
-        #[test]
-        #[should_panic]
-        fn mtc_list_panics_if_neither_servers() {
-            let mut client: MtcList<TestMtcItem> = MtcList::new(false);
-            let mut client1: MtcList<TestMtcItem> = MtcList::new(false);
+        let mut sorted: Vec<TestMtcItem> = client_list.items().iter().cloned().cloned().collect();
+        sorted.sort();
 
-            client.sync(&mut client1);
-        }
+        assert_eq!(sorted, exp);
+        let mut sorted: Vec<TestMtcItem> = server_list.items().iter().cloned().cloned().collect();
+        sorted.sort();
+
+        assert_eq!(sorted, exp);
+    }
+
+    #[test]
+    #[should_panic]
+    fn mtc_list_panics_if_both_servers() {
+        let mut client: MtcList<TestMtcItem> = MtcList::new(true);
+        let mut client1: MtcList<TestMtcItem> = MtcList::new(true);
+
+        client.sync(&mut client1);
+    }
+
+    #[test]
+    #[should_panic]
+    fn mtc_list_panics_if_neither_servers() {
+        let mut client: MtcList<TestMtcItem> = MtcList::new(false);
+        let mut client1: MtcList<TestMtcItem> = MtcList::new(false);
+
+        client.sync(&mut client1);
     }
 }
