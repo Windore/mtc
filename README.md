@@ -1,8 +1,8 @@
-# MMVK
+# MTC - My Time Contract
 
-MMVK is a CLI time management app with the ability to synchronize todo-items, tasks and events via a server using a SSH connection. It also has a public API for writing additional interfaces.
+MTC is a CLI time management app with the ability to synchronize todo-items, tasks and events via a server using a SSH connection. It also has a public API for writing additional interfaces.
 
-`mmvk` is an yet another time-management app as enough of those don't exist yet. The main purpose of this app is to serve as simple rust practice for me while also allowing me to sync my todo-lists and events using my home server.
+`mtc` is an yet another time-management app as enough of those don't exist yet. The main purpose of this app is to serve as simple rust practice for me while also allowing me to sync my todo-lists and events using my home server.
 
 ## Installation
 
@@ -18,11 +18,11 @@ Todo-items are quite self-explanatory. They are used for simple one time tasks t
 
 ### Tasks
 
-Tasks are something that one expects to do every week on a specific weekday. They have a duration in minutes and you can use `mmvk do` to have a timer for that duration. Tasks can also exist without a weekday specified.
+Tasks are something that one expects to do every week on a specific weekday. They have a duration in minutes and you can use `mtc do` to have a timer for that duration. Tasks can also exist without a weekday specified.
 
 ### Events
 
-Events are like todo-items, but they have a specific date when they occur. `mmvk` automatically removes events that are before the current date, when running **any** command.
+Events are like todo-items, but they have a specific date when they occur. `mtc` automatically removes events that are before the current date, when running **any** command.
 
 ### Commands
 
@@ -31,37 +31,37 @@ Events are like todo-items, but they have a specific date when they occur. `mmvk
 Show all todo-items, tasks, and events:
 
 ```
-mmvk show
+mtc show
 ```
 
 Show only a specific type:
 
 ```
-mmvk show <type>
+mtc show <type>
 ```
 
 Show everything for a weekday. (Note: If today is an tuesday and the specified weekday is monday this command will show next weeks monday)
 
 ```
-mmvk show <weekday>
+mtc show <weekday>
 ```
 
 Show everything for today.
 
 ```
-mmvk show today
+mtc show today
 ```
 
 Show everything for a week from this day.
 
 ```
-mmvk show week
+mtc show week
 ```
 
 Show everything for a 30-day period from this day.
 
 ```
-mmvk show month
+mtc show month
 ```
 
 #### Add
@@ -69,13 +69,13 @@ mmvk show month
 Add a new item of a given type.
 
 ```
-mmvk add <type>
+mtc add <type>
 ```
 
 Add a todo-item or a task on a specific weekday. This doesn't work for events.
 
 ```
-mmvk add <type> <weekday>
+mtc add <type> <weekday>
 ```
 
 #### Remove
@@ -83,7 +83,7 @@ mmvk add <type> <weekday>
 Remove an item. Each item of a type has an unique numerical id. You can get the id with the `show` command. 
 
 ```
-mmvk remove <type> <id>
+mtc remove <type> <id>
 ```
 
 #### Move
@@ -91,7 +91,7 @@ mmvk remove <type> <id>
 Move an item. For event the command asks for a new date. For tasks and todo-items, the app asks for a weekday.
 
 ```
-mmvk move <type> <id>
+mtc move <type> <id>
 ```
 
 #### Do
@@ -99,7 +99,7 @@ mmvk move <type> <id>
 Start a timer for a task. The timer can be paused and resumed with `p`
 
 ```
-mmvk do <task id>
+mtc do <task id>
 ```
 
 #### Sync
@@ -107,7 +107,7 @@ mmvk do <task id>
 This will be added soon.
 
 ```
-mmvk sync
+mtc sync
 ```
 
 #### Help
@@ -115,7 +115,7 @@ mmvk sync
 Show a help message.
 
 ```
-mmvk help
+mtc help
 ```
 
 ## License
