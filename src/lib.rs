@@ -6,9 +6,13 @@
 #![warn(missing_docs)]
 
 use chrono::prelude::*;
+use serde::{Serialize, Deserialize};
 
 mod items;
 pub use crate::items::*;
+
+mod remote;
+pub use crate::remote::*;
 
 /// An Item for MtcList. A struct implementing MtcItem is usually defined for a specific time and it has a state.
 pub trait MtcItem {
@@ -135,7 +139,7 @@ pub trait MtcItem {
 }
 
 /// A state of an MtcItem used for synchronising MtcLists correctly
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
 pub enum ItemState {
     /// MtcItem is a new item and the server list does not contain it
     New,
@@ -148,7 +152,7 @@ pub enum ItemState {
 /// A wrapper for a Vec containing MtcItems. The wrapper helps to manage the state of the items and sync them correctly.
 /// A MtcList can be either a client or a server list which affect the functionality of the list. Server lists don't track
 /// the state since multiple clients could be interacting with the same server.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct MtcList<T: MtcItem + Clone> {
     items: Vec<T>,
     is_server: bool,

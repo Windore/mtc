@@ -1,10 +1,9 @@
-#![warn(missing_docs)]
-
 use crate::{ItemState, MtcItem};
 use chrono::prelude::*;
+use serde::{Serialize, Deserialize};
 
 /// A short term task that should be done on a optionally given weekday.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct TodoItem {
     weekday: Option<Weekday>,
     body: String,
@@ -12,7 +11,7 @@ pub struct TodoItem {
 }
 
 /// A repetitive task with a duration in minutes for a optionally given day.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Task {
     weekday: Option<Weekday>,
     body: String,
@@ -21,7 +20,7 @@ pub struct Task {
 }
 
 /// An event that will happen on a given date and optionally a time.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Event {
     date: NaiveDate,
     body: String,
