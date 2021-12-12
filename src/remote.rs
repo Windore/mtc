@@ -19,6 +19,7 @@ where
 {
     if overwrite {
         client_list.sync_self();
+        // TODO: Create client to server function and call it here!
         return upload_file(session, server_path, &serde_json::to_string(client_list)?);
     }
 
