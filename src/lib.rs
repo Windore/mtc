@@ -11,6 +11,9 @@ use serde::{Serialize, Deserialize};
 mod items;
 pub use crate::items::*;
 
+mod remote;
+pub use crate::remote::*;
+
 /// An Item for MtcList. A struct implementing MtcItem is usually defined for a specific time and it has a state.
 pub trait MtcItem {
     /// Returns true if the item is for a given date.

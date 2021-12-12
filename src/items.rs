@@ -1,5 +1,3 @@
-#![warn(missing_docs)]
-
 use crate::{ItemState, MtcItem};
 use chrono::prelude::*;
 use serde::{Serialize, Deserialize};
