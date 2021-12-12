@@ -1,6 +1,7 @@
 use crate::{ItemState, MtcItem};
 use chrono::prelude::*;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
+use std::fmt::Display;
 
 /// A short term task that should be done on a optionally given weekday.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -282,17 +283,40 @@ impl Eq for Task {}
 
 impl Ord for Event {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.body.cmp(&other.body)
+        let order = self.date.cmp(&other.date);
+        if order == std::cmp::Ordering::Equal {
+            self.body.cmp(&other.body)
+        } else {
+            order
+        }
     }
 }
 
 impl PartialOrd for Event {
     fn partial_cmp(&self, other: &Self) -> std::option::Option<std::cmp::Ordering> {
-        Some(self.body.cmp(&other.body))
+        Some(self.cmp(&other))
     }
 }
 
 impl Eq for Event {}
+
+impl Display for TodoItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        write!(f, "{}", self.body)
+    }
+}
+
+impl Display for Task {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        write!(f, "{}: {} minutes", self.body, self.duration)
+    }
+}
+
+impl Display for Event {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        write!(f, "{}: {}", self.date, self.body)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -416,5 +440,46 @@ mod tests {
 
         assert!(!item1.ignore_state_eq(&item2));
         assert!(!item2.ignore_state_eq(&item1));
+    }
+
+    #[test]
+    fn event_order_works() {
+        let mut events = vec![
+            Event::new("2 Event".to_string(), NaiveDate::from_ymd(2022, 1, 1)),
+            Event::new("1 Event".to_string(), NaiveDate::from_ymd(2022, 1, 1)),
+            Event::new("0 Event".to_string(), NaiveDate::from_ymd(2022, 1, 2)),
+            Event::new("9 Event".to_string(), NaiveDate::from_ymd(2021, 1, 1)),
+            Event::new("1 Event".to_string(), NaiveDate::from_ymd(2022, 1, 2)),
+        ];
+
+        let expected = vec![
+            Event::new("9 Event".to_string(), NaiveDate::from_ymd(2021, 1, 1)),
+            Event::new("1 Event".to_string(), NaiveDate::from_ymd(2022, 1, 1)),
+            Event::new("2 Event".to_string(), NaiveDate::from_ymd(2022, 1, 1)),
+            Event::new("0 Event".to_string(), NaiveDate::from_ymd(2022, 1, 2)),
+            Event::new("1 Event".to_string(), NaiveDate::from_ymd(2022, 1, 2)),
+        ];
+
+        events.sort();
+
+        assert_eq!(events, expected);
+    }
+
+    #[test]
+    fn todo_item_display_works() {
+        let todo_item = TodoItem::new("Do Task 1".to_string(), Some(Weekday::Mon));
+        assert_eq!(format!("{}", todo_item), "Do Task 1");
+    }
+
+    #[test]
+    fn task_display_works() {
+        let task = Task::new("Do Task 1".to_string(), 10, Some(Weekday::Mon));
+        assert_eq!(format!("{}", task), "Do Task 1: 10 minutes");
+    }
+
+    #[test]
+    fn event_display_works() {
+        let event = Event::new("Event 1".to_string(), NaiveDate::from_ymd(2021, 1, 5));
+        assert_eq!(format!("{}", event), "2021-01-05: Event 1");
     }
 }
