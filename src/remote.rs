@@ -17,16 +17,16 @@ pub fn sync_remote<T>(
 where
     T: MtcItem + Clone + DeserializeOwned + Serialize,
 {
+    let mut server_list;
     if overwrite {
         client_list.sync_self();
-        // TODO: Create client to server function and call it here!
-        return upload_file(session, server_path, &serde_json::to_string(client_list)?);
+        server_list = client_list.clone_to_server();
+    } else {
+        let content = download_file(session, server_path)?;
+        server_list = serde_json::from_str(&content)?;
+        client_list.sync(&mut server_list);
     }
 
-    let content = download_file(session, server_path)?;
-    let mut server_list: MtcList<T> = serde_json::from_str(&content)?;
-
-    client_list.sync(&mut server_list);
     upload_file(session, server_path, &serde_json::to_string(&server_list)?)
 }
 

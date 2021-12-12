@@ -224,6 +224,15 @@ impl<T: MtcItem + Clone> MtcList<T> {
             .collect()
     }
 
+    /// Returns a clone of self but as a server
+    pub fn clone_to_server(&self) -> MtcList<T> {
+        let mut clone = self.clone();
+        clone.is_server = true;
+        clone.sync_self();
+
+        clone
+    }
+
     /// Synchronizes the list with itself by removing all items with the Removed state and setting the state of the rest to Neutral.
     pub fn sync_self(&mut self) {
         self.items.retain(|item| item.state() != ItemState::Removed);
@@ -939,5 +948,21 @@ mod tests {
         let mut client1: MtcList<TestMtcItem> = MtcList::new(false);
 
         client.sync(&mut client1);
+    }
+
+    #[test]
+    fn mtc_list_clone_server_clones_valid_server() {
+        let mut client = MtcList::new(false);
+        client.add(TestMtcItem::new("Item 0".to_string()));
+        client.add(TestMtcItem::new("Item 1".to_string()));
+        client.add(TestMtcItem::new("Item 2".to_string()));
+
+        client.mark_removed(1).unwrap();
+
+        let mut expected = MtcList::new(true);
+        expected.add(TestMtcItem::new("Item 0".to_string()));
+        expected.add(TestMtcItem::new("Item 2".to_string()));
+
+        assert_eq!(client.clone_to_server(), expected);
     }
 }
