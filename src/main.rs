@@ -85,11 +85,11 @@ mod commands {
                     }
                 }
             },
-            None => {
-                eprintln!("Not enough arguments.");
+            Some(typ) => {
+                eprintln!("Unknown type: '{}'", typ);
                 tip();
             },
-            _ => {
+            None => {
                 eprintln!("No type specified.");
                 tip();
             },
@@ -276,10 +276,8 @@ mod commands {
                 println!("{}", wd);
                 println!("\tTodo-Items: ");
                 show_list_weekday(&items.todo_items, *wd);
-                println!("");
                 println!("\tTasks: ");
                 show_list_weekday(&items.tasks, *wd);
-                println!("");
             }
             show_all_events(&items);
         }
@@ -301,10 +299,12 @@ mod commands {
             let mut day = Local::today().naive_local();
             let orig_day = day.weekday();
 
-            while day.succ().weekday() != orig_day {
+            while {
                 show_all_date(items, day);
                 day = day.succ();
-            }
+
+                day.weekday() != orig_day
+            } {}
         }
 
         fn show_month(items: &Items) {
@@ -368,7 +368,7 @@ mod commands {
             show_list(&items_vec);
         }
 
-        fn show_list<T: Display>(list: &[&T]) {
+        fn show_list<T: Display + MtcItem>(list: &[&T]) {
             for i in list.iter() {
                 println!("\t\t{}", i);
             }

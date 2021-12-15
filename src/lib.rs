@@ -198,6 +198,10 @@ impl<T: MtcItem + Clone> MtcList<T> {
                 self.items.remove(id);
                 self.map_indices_to_ids();
             } else {
+                if item.state() == ItemState::Removed {
+                    // Return err even when such item exists because it is in a way removed.
+                    return Err("No item with the given id found.");
+                }
                 item.set_state(ItemState::Removed);
             }
             Ok(())
@@ -211,7 +215,9 @@ impl<T: MtcItem + Clone> MtcList<T> {
         let mut new = Vec::new();
 
         for item in &self.items {
-            new.push(item);
+            if item.state() != ItemState::Removed {
+                new.push(item);
+            }
         }
 
         new
@@ -219,21 +225,24 @@ impl<T: MtcItem + Clone> MtcList<T> {
 
     /// Returns a new vector containing references to all items that are for a given date.
     pub fn items_for_date(&self, date: NaiveDate) -> Vec<&T> {
-        self.items
-            .iter()
+        self.items()
+            .into_iter()
             .filter(|item| item.for_date(date))
             .collect()
     }
 
     /// Return a new vector containing references to all items that are for today.
     pub fn items_for_today(&self) -> Vec<&T> {
-        self.items.iter().filter(|item| item.for_today()).collect()
+        self.items()
+            .into_iter()
+            .filter(|item| item.for_today())
+            .collect()
     }
 
     /// Return a vector containing references to all items that are for a given weekday.
     pub fn items_for_weekday(&self, weekday: Weekday) -> Vec<&T> {
-        self.items
-            .iter()
+        self.items()
+            .into_iter()
             .filter(|item| item.for_weekday(weekday))
             .collect()
     }
@@ -500,8 +509,7 @@ mod tests {
             fn id(&self) -> usize {
                 0
             }
-            fn set_id(&mut self, _: usize) {
-            }
+            fn set_id(&mut self, _: usize) {}
         }
 
         let item = TestItem {};
@@ -525,10 +533,10 @@ mod tests {
             TodoItem::new("test4".to_string(), Some(Weekday::Tue)),
         ];
 
-        expected[0].set_id(0); 
-        expected[1].set_id(1); 
-        expected[2].set_id(3); 
-        expected[3].set_id(4); 
+        expected[0].set_id(0);
+        expected[1].set_id(1);
+        expected[2].set_id(3);
+        expected[3].set_id(4);
 
         let result: Vec<TodoItem> = list
             .items_for_date(NaiveDate::from_ymd(2021, 11, 30))
@@ -561,9 +569,9 @@ mod tests {
             Task::new("test3".to_string(), 0, None),
         ];
 
-        expected[0].set_id(0); 
-        expected[1].set_id(1); 
-        expected[2].set_id(3); 
+        expected[0].set_id(0);
+        expected[1].set_id(1);
+        expected[2].set_id(3);
 
         let result: Vec<Task> = items.items_for_today().iter().cloned().cloned().collect();
 
@@ -585,9 +593,9 @@ mod tests {
             Task::new("test3".to_string(), 0, None),
         ];
 
-        expected[0].set_id(0); 
-        expected[1].set_id(1); 
-        expected[2].set_id(3); 
+        expected[0].set_id(0);
+        expected[1].set_id(1);
+        expected[2].set_id(3);
 
         let result: Vec<Task> = items
             .items_for_weekday(Weekday::Fri)
@@ -637,9 +645,9 @@ mod tests {
             Event::new("test4".to_string(), NaiveDate::from_ymd(2021, 10, 5)),
         ];
 
-        expected[0].set_id(0); 
-        expected[1].set_id(3); 
-        expected[2].set_id(4); 
+        expected[0].set_id(0);
+        expected[1].set_id(3);
+        expected[2].set_id(4);
 
         let result: Vec<Event> = items
             .items_for_date(NaiveDate::from_ymd(2021, 10, 5))
@@ -696,8 +704,7 @@ mod tests {
         fn id(&self) -> usize {
             0
         }
-        fn set_id(&mut self, _: usize) {
-        }
+        fn set_id(&mut self, _: usize) {}
     }
 
     #[test]
@@ -1048,5 +1055,20 @@ mod tests {
         let mut item = TodoItem::new("Item 2".to_string(), Some(Weekday::Wed));
         item.set_id(1);
         assert_eq!(*client.items()[1], item);
+    }
+
+    #[test]
+    fn mtc_list_doesnt_return_marked_as_removed() {
+        let mut client = MtcList::new(false);
+
+        client.add(TodoItem::new("Item 0".to_string(), None));
+        client.add(TodoItem::new("Item 1".to_string(), None));
+        client.add(TodoItem::new("Item 2".to_string(), None));
+
+        client.mark_removed(1).unwrap();
+
+        for item in client.items() {
+            assert!(!item.ignore_state_eq(&TodoItem::new("Item 1".to_string(), None)));
+        }
     }
 }
