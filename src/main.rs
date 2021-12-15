@@ -2,9 +2,9 @@ use mtc::*;
 use serde::{de::DeserializeOwned, Serialize};
 use std::env;
 use std::fmt::Display;
-use std::str::FromStr;
 use std::io::{self, BufReader, BufWriter, Write};
 use std::path::Path;
+use std::str::FromStr;
 use std::{fs, fs::File};
 
 pub struct Items {
@@ -27,15 +27,16 @@ mod commands {
         match args.next() {
             Some("show") => show_cmd::show(&items, args),
             Some("help") => help(),
-            Some("add") => add_move_cmd::add(&mut items, args),
+            Some("add") => add_cmd::add(&mut items, args),
+            Some("remove") => remove(&mut items, args),
             None => {
                 eprintln!("Not enough arguments.");
                 tip();
-            },
+            }
             _ => {
                 eprintln!("Unknown command.");
                 tip();
-            },         
+            }
         }
 
         items
@@ -49,10 +50,78 @@ mod commands {
         println!("Use: 'mtc help' for help.");
     }
 
-    mod add_move_cmd {
+    fn remove<'a, T>(items: &mut Items, mut args: T)
+    where
+        T: Iterator<Item = &'a str>,
+    {
+        match args.next() {
+            Some("todo-item") => {
+                loop {
+                    let id = read_id();
+                    if let Err(e) = items.todo_items.mark_removed(id) {
+                        eprintln!("{}", e);
+                    } else {
+                        break;
+                    }
+                }
+            },
+            Some("task") => {
+                loop {
+                    let id = read_id();
+                    if let Err(e) = items.tasks.mark_removed(id) {
+                        eprintln!("{}", e);
+                    } else {
+                        break;
+                    }
+                }
+            },
+            Some("event") => {
+                loop {
+                    let id = read_id();
+                    if let Err(e) = items.events.mark_removed(id) {
+                        eprintln!("{}", e);
+                    } else {
+                        break;
+                    }
+                }
+            },
+            None => {
+                eprintln!("Not enough arguments.");
+                tip();
+            },
+            _ => {
+                eprintln!("No type specified.");
+                tip();
+            },
+        }
+    }
+
+    fn read_id() -> usize {
+        loop {
+            print!("Input an ID: ");
+            io::stdout().flush().expect("Failed to flush stdout.");
+            let mut inp = String::new();
+            io::stdin()
+                .read_line(&mut inp)
+                .expect("Failed to read stdin.");
+            inp = inp.replace('\n', "");
+
+            match usize::from_str(&inp) {
+                Ok(n) => return n,
+                Err(_) => {
+                    eprintln!("Cannot parse '{}' to a number.", &inp);
+                }
+            }
+        }
+    }
+
+    mod add_cmd {
         use super::*;
 
-        pub fn add<'a, T>(items: &mut Items, mut args: T) where T: Iterator<Item = &'a str> {
+        pub fn add<'a, T>(items: &mut Items, mut args: T)
+        where
+            T: Iterator<Item = &'a str>,
+        {
             match args.next() {
                 Some("todo-item") => add_todo_item(items),
                 Some("task") => add_task(items),
@@ -65,7 +134,7 @@ mod commands {
                     eprintln!("No type specified.");
                     tip();
                 }
-            } 
+            }
         }
 
         fn add_todo_item(items: &mut Items) {
@@ -95,11 +164,13 @@ mod commands {
                 print!("Input a weekday (empty for none): ");
                 io::stdout().flush().expect("Failed to flush stdout.");
                 let mut inp = String::new();
-                io::stdin().read_line(&mut inp).expect("Failed to read stdin.");
+                io::stdin()
+                    .read_line(&mut inp)
+                    .expect("Failed to read stdin.");
                 inp = inp.replace('\n', "");
 
                 if inp.trim().len() == 0 {
-                return None; 
+                    return None;
                 }
 
                 match Weekday::from_str(&inp) {
@@ -116,7 +187,9 @@ mod commands {
                 print!("Input a duration in minutes: ");
                 io::stdout().flush().expect("Failed to flush stdout.");
                 let mut inp = String::new();
-                io::stdin().read_line(&mut inp).expect("Failed to read stdin.");
+                io::stdin()
+                    .read_line(&mut inp)
+                    .expect("Failed to read stdin.");
                 inp = inp.replace('\n', "");
 
                 match u32::from_str(&inp) {
@@ -133,7 +206,9 @@ mod commands {
                 print!("Input a body: ");
                 io::stdout().flush().expect("Failed to flush stdout.");
                 let mut inp = String::new();
-                io::stdin().read_line(&mut inp).expect("Failed to read stdin.");
+                io::stdin()
+                    .read_line(&mut inp)
+                    .expect("Failed to read stdin.");
                 inp = inp.replace('\n', "");
 
                 return inp;
@@ -145,7 +220,9 @@ mod commands {
                 print!("Input a date (yyyy-mm-dd): ");
                 io::stdout().flush().expect("Failed to flush stdout.");
                 let mut inp = String::new();
-                io::stdin().read_line(&mut inp).expect("Failed to read stdin.");
+                io::stdin()
+                    .read_line(&mut inp)
+                    .expect("Failed to read stdin.");
                 inp = inp.replace('\n', "");
 
                 match NaiveDate::from_str(&inp) {
@@ -171,7 +248,10 @@ mod commands {
             Weekday::Sun,
         ];
 
-        pub fn show<'a, T>(items: &Items, mut args: T) where T: Iterator<Item = &'a str> {
+        pub fn show<'a, T>(items: &Items, mut args: T)
+        where
+            T: Iterator<Item = &'a str>,
+        {
             match args.next() {
                 Some("todo-items") => show_all_todo_items(items),
                 Some("tasks") => show_all_tasks(items),
@@ -190,7 +270,6 @@ mod commands {
                 None => show_all(items),
             }
         }
-
 
         fn show_all(items: &Items) {
             for wd in WEEKDAYS.iter() {
@@ -274,14 +353,16 @@ mod commands {
             show_list_date(&items.events, date);
         }
 
-
         fn show_list_date<T: MtcItem + Clone + Ord + Display>(list: &MtcList<T>, date: NaiveDate) {
             let mut items_vec = list.items_for_date(date);
             items_vec.sort();
             show_list(&items_vec);
         }
 
-        fn show_list_weekday<T: MtcItem + Clone + Ord + Display>(list: &MtcList<T>, weekday: Weekday) {
+        fn show_list_weekday<T: MtcItem + Clone + Ord + Display>(
+            list: &MtcList<T>,
+            weekday: Weekday,
+        ) {
             let mut items_vec = list.items_for_weekday(weekday);
             items_vec.sort();
             show_list(&items_vec);

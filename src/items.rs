@@ -9,6 +9,7 @@ pub struct TodoItem {
     weekday: Option<Weekday>,
     body: String,
     state: ItemState,
+    id: usize,
 }
 
 /// A repetitive task with a duration in minutes for a optionally given day.
@@ -18,6 +19,7 @@ pub struct Task {
     body: String,
     duration: u32,
     state: ItemState,
+    id: usize,
 }
 
 /// An event that will happen on a given date and optionally a time.
@@ -26,6 +28,7 @@ pub struct Event {
     date: NaiveDate,
     body: String,
     state: ItemState,
+    id: usize,
 }
 
 impl TodoItem {
@@ -35,6 +38,7 @@ impl TodoItem {
             weekday,
             body,
             state: ItemState::Neutral,
+            id: 0,
         }
     }
 
@@ -62,6 +66,7 @@ impl Task {
             body,
             duration,
             state: ItemState::Neutral,
+            id: 0,
         }
     }
 
@@ -93,6 +98,7 @@ impl Event {
             body,
             date,
             state: ItemState::Neutral,
+            id: 0,
         }
     }
 
@@ -158,6 +164,12 @@ impl MtcItem for TodoItem {
     fn ignore_state_eq(&self, other: &TodoItem) -> bool {
         self.body == other.body && self.weekday == other.weekday
     }
+    fn id(&self) -> usize {
+        self.id
+    }
+    fn set_id(&mut self, new_id: usize) {
+        self.id = new_id;
+    }
 }
 
 impl MtcItem for Task {
@@ -206,6 +218,13 @@ impl MtcItem for Task {
     fn ignore_state_eq(&self, other: &Task) -> bool {
         self.body == other.body && self.weekday == other.weekday && self.duration == other.duration
     }
+    fn id(&self) -> usize {
+        self.id
+    }
+    fn set_id(&mut self, new_id: usize) {
+        self.id = new_id;
+    }
+
 }
 
 impl MtcItem for Event {
@@ -250,6 +269,12 @@ impl MtcItem for Event {
     /// ```
     fn ignore_state_eq(&self, other: &Self) -> bool {
         self.body == other.body && self.date == other.date
+    }
+    fn id(&self) -> usize {
+        self.id
+    }
+    fn set_id(&mut self, new_id: usize) {
+        self.id = new_id;
     }
 }
 
@@ -302,19 +327,19 @@ impl Eq for Event {}
 
 impl Display for TodoItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        write!(f, "{}", self.body)
+        write!(f, "{} (ID: {})", self.body, self.id)
     }
 }
 
 impl Display for Task {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        write!(f, "{}: {} minutes", self.body, self.duration)
+        write!(f, "{}: {} minutes (ID: {})", self.body, self.duration, self.id)
     }
 }
 
 impl Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        write!(f, "{}: {}", self.date, self.body)
+        write!(f, "{}: {} (ID: {})", self.date, self.body, self.id)
     }
 }
 

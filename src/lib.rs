@@ -6,7 +6,7 @@
 #![warn(missing_docs)]
 
 use chrono::prelude::*;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 mod items;
 pub use crate::items::*;
@@ -34,6 +34,8 @@ pub trait MtcItem {
     ///     fn state(&self) -> ItemState { todo!() }
     ///     fn set_state(&mut self, state: ItemState) { todo!() }
     ///     fn ignore_state_eq(&self, other: &Self) -> bool { todo!() }
+    ///     fn id(&self) -> usize { 0 }
+    ///     fn set_id(&mut self, id: usize) {}
     /// }
     ///
     /// assert!(WeekdayItem { weekday: Weekday::Mon }.for_date(NaiveDate::from_ymd(2021, 12, 6)));
@@ -58,6 +60,8 @@ pub trait MtcItem {
     ///     fn state(&self) -> ItemState { todo!() }
     ///     fn set_state(&mut self, state: ItemState) { todo!() }
     ///     fn ignore_state_eq(&self, other: &Self) -> bool { todo!() }
+    ///     fn id(&self) -> usize { 0 }
+    ///     fn set_id(&mut self, id: usize) {}
     /// }
     ///
     /// assert!(WeekdayItem { weekday: Local::today().weekday() }.for_today());
@@ -83,6 +87,8 @@ pub trait MtcItem {
     ///     fn state(&self) -> ItemState { todo!() }
     ///     fn set_state(&mut self, state: ItemState) { todo!() }
     ///     fn ignore_state_eq(&self, other: &Self) -> bool { todo!() }
+    ///     fn id(&self) -> usize { 0 }
+    ///     fn set_id(&mut self, id: usize) {}
     /// }
     ///
     /// assert!(WeekdayItem { weekday: Weekday::Fri }.for_weekday(Weekday::Fri));
@@ -119,6 +125,8 @@ pub trait MtcItem {
     ///     fn for_date(&self, date: NaiveDate) -> bool { todo!() }
     ///     fn state(&self) -> ItemState { todo!() }
     ///     fn set_state(&mut self, state: ItemState) { todo!() }
+    ///     fn id(&self) -> usize { 0 }
+    ///     fn set_id(&mut self, id: usize) {}
     /// }
     ///
     /// let item1 = TodoItem {
@@ -136,6 +144,10 @@ pub trait MtcItem {
     /// assert!(item1.ignore_state_eq(&item2));
     /// ```
     fn ignore_state_eq(&self, other: &Self) -> bool;
+    /// Gets the id of the item. Returns -1 if the item is not in a `MtcList`
+    fn id(&self) -> usize;
+    /// Sets the id of the items. `MtcList` usually handles setting the id so in most cases calling this manually is not needed.
+    fn set_id(&mut self, new_id: usize);
 }
 
 /// A state of an MtcItem used for synchronising MtcLists correctly
@@ -174,21 +186,23 @@ impl<T: MtcItem + Clone> MtcList<T> {
         } else {
             item.set_state(ItemState::New);
         }
+        item.set_id(self.items.len());
         self.items.push(item);
     }
 
-    /// Marks a MtcItem of a given index to be removed. Returns Err(&str) if index is out of bounds.
-    pub fn mark_removed(&mut self, index: usize) -> Result<(), &str> {
-        if let Some(item) = self.items.get_mut(index) {
+    /// Marks a MtcItem of a given id to be removed. The id is the same as the index in the inner `Vec`. Returns `Err(&str)` if index is out of bounds.
+    pub fn mark_removed(&mut self, id: usize) -> Result<(), &str> {
+        if let Some(item) = self.items.get_mut(id) {
             if self.is_server {
                 drop(item);
-                self.items.remove(index);
+                self.items.remove(id);
+                self.map_indices_to_ids();
             } else {
                 item.set_state(ItemState::Removed);
             }
             Ok(())
         } else {
-            Err("No item with the given id found")
+            Err("No item with the given id found.")
         }
     }
 
@@ -236,9 +250,10 @@ impl<T: MtcItem + Clone> MtcList<T> {
     /// Synchronizes the list with itself by removing all items with the Removed state and setting the state of the rest to Neutral.
     pub fn sync_self(&mut self) {
         self.items.retain(|item| item.state() != ItemState::Removed);
-        self.items
-            .iter_mut()
-            .for_each(|item| item.set_state(ItemState::Neutral));
+        for (i, item) in self.items.iter_mut().enumerate() {
+            item.set_state(ItemState::Neutral);
+            item.set_id(i);
+        }
     }
 
     /// Synchronizes this MtcList with the other MtcList.
@@ -367,6 +382,12 @@ impl<T: MtcItem + Clone> MtcList<T> {
         client_list.sync_self();
         server_list.sync_self();
     }
+
+    fn map_indices_to_ids(&mut self) {
+        for (i, item) in self.items.iter_mut().enumerate() {
+            item.set_id(i);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -387,6 +408,12 @@ mod tests {
                 todo!()
             }
             fn ignore_state_eq(&self, _: &Self) -> bool {
+                todo!()
+            }
+            fn id(&self) -> usize {
+                todo!()
+            }
+            fn set_id(&mut self, _: usize) {
                 todo!()
             }
         }
@@ -412,6 +439,12 @@ mod tests {
             fn ignore_state_eq(&self, _: &Self) -> bool {
                 todo!()
             }
+            fn id(&self) -> usize {
+                todo!()
+            }
+            fn set_id(&mut self, _: usize) {
+                todo!()
+            }
         }
 
         let item = TestItem {};
@@ -433,6 +466,12 @@ mod tests {
                 todo!()
             }
             fn ignore_state_eq(&self, _: &Self) -> bool {
+                todo!()
+            }
+            fn id(&self) -> usize {
+                todo!()
+            }
+            fn set_id(&mut self, _: usize) {
                 todo!()
             }
         }
@@ -458,6 +497,11 @@ mod tests {
             fn ignore_state_eq(&self, _: &Self) -> bool {
                 todo!()
             }
+            fn id(&self) -> usize {
+                0
+            }
+            fn set_id(&mut self, _: usize) {
+            }
         }
 
         let item = TestItem {};
@@ -474,12 +518,17 @@ mod tests {
         list.add(TodoItem::new("test3".to_string(), None));
         list.add(TodoItem::new("test4".to_string(), Some(Weekday::Tue)));
 
-        let expected = vec![
+        let mut expected = vec![
             TodoItem::new("test0".to_string(), None),
             TodoItem::new("test1".to_string(), Some(Weekday::Tue)),
             TodoItem::new("test3".to_string(), None),
             TodoItem::new("test4".to_string(), Some(Weekday::Tue)),
         ];
+
+        expected[0].set_id(0); 
+        expected[1].set_id(1); 
+        expected[2].set_id(3); 
+        expected[3].set_id(4); 
 
         let result: Vec<TodoItem> = list
             .items_for_date(NaiveDate::from_ymd(2021, 11, 30))
@@ -506,11 +555,15 @@ mod tests {
             Some(today.succ().succ()),
         ));
 
-        let expected = vec![
+        let mut expected = vec![
             Task::new("test0".to_string(), 40, Some(today)),
             Task::new("test1".to_string(), 30, Some(today)),
             Task::new("test3".to_string(), 0, None),
         ];
+
+        expected[0].set_id(0); 
+        expected[1].set_id(1); 
+        expected[2].set_id(3); 
 
         let result: Vec<Task> = items.items_for_today().iter().cloned().cloned().collect();
 
@@ -526,11 +579,15 @@ mod tests {
         items.add(Task::new("test3".to_string(), 0, None));
         items.add(Task::new("test4".to_string(), 90, Some(Weekday::Wed)));
 
-        let expected = vec![
+        let mut expected = vec![
             Task::new("test0".to_string(), 40, Some(Weekday::Fri)),
             Task::new("test1".to_string(), 30, Some(Weekday::Fri)),
             Task::new("test3".to_string(), 0, None),
         ];
+
+        expected[0].set_id(0); 
+        expected[1].set_id(1); 
+        expected[2].set_id(3); 
 
         let result: Vec<Task> = items
             .items_for_weekday(Weekday::Fri)
@@ -574,11 +631,15 @@ mod tests {
             NaiveDate::from_ymd(2020, 11, 30),
         ));
 
-        let expected = vec![
+        let mut expected = vec![
             Event::new("test0".to_string(), NaiveDate::from_ymd(2021, 10, 5)),
             Event::new("test3".to_string(), NaiveDate::from_ymd(2021, 10, 5)),
             Event::new("test4".to_string(), NaiveDate::from_ymd(2021, 10, 5)),
         ];
+
+        expected[0].set_id(0); 
+        expected[1].set_id(3); 
+        expected[2].set_id(4); 
 
         let result: Vec<Event> = items
             .items_for_date(NaiveDate::from_ymd(2021, 10, 5))
@@ -631,6 +692,11 @@ mod tests {
         }
         fn ignore_state_eq(&self, other: &Self) -> bool {
             self.body == other.body
+        }
+        fn id(&self) -> usize {
+            0
+        }
+        fn set_id(&mut self, _: usize) {
         }
     }
 
@@ -964,5 +1030,23 @@ mod tests {
         expected.add(TestMtcItem::new("Item 2".to_string()));
 
         assert_eq!(client.clone_to_server(), expected);
+    }
+
+    #[test]
+    fn mtc_list_id_matches() {
+        let mut client = MtcList::new(false);
+
+        client.add(TodoItem::new("Item 0".to_string(), Some(Weekday::Mon)));
+        client.add(TodoItem::new("Item 1".to_string(), Some(Weekday::Tue)));
+        client.add(TodoItem::new("Item 2".to_string(), Some(Weekday::Wed)));
+
+        client.mark_removed(0).unwrap();
+
+        client.sync_self();
+
+        assert_eq!(client.items_for_weekday(Weekday::Wed)[0].id(), 1);
+        let mut item = TodoItem::new("Item 2".to_string(), Some(Weekday::Wed));
+        item.set_id(1);
+        assert_eq!(*client.items()[1], item);
     }
 }
