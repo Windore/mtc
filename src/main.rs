@@ -6,6 +6,8 @@ use std::io::{self, BufReader, BufWriter, Write};
 use std::path::Path;
 use std::str::FromStr;
 use std::{fs, fs::File};
+use std::time::{Duration, Instant};
+use std::thread;
 
 pub struct Items {
     pub todo_items: MtcList<TodoItem>,
@@ -29,6 +31,7 @@ mod commands {
             Some("help") => help(),
             Some("add") => add_cmd::add(&mut items, args),
             Some("remove") => remove(&mut items, args),
+            Some("do") => do_task(&items),
             None => {
                 eprintln!("Not enough arguments.");
                 tip();
@@ -48,6 +51,38 @@ mod commands {
 
     fn tip() {
         println!("Use: 'mtc help' for help.");
+    }
+
+    fn do_task(items: &Items) {
+        loop {
+            let id = read_id();
+
+            if let Some(task) = items.tasks.items().get(id) {
+                let mut millis_left = task.duration() as u128 * 60_000;
+                loop {
+                    let now = Instant::now();
+                    // "Clear" the line.
+                    print!("\r                                 ");
+                    let seconds_left = millis_left / 1000;
+                    let hours = seconds_left / 3600;
+                    let minutes = (seconds_left - hours * 3600) / 60;
+                    let seconds = seconds_left - hours * 3600 - minutes * 60;
+                    print!("\rTime left: {} h {} min {} s", hours, minutes, seconds);
+                    io::stdout().flush().expect("Failed to flush stdout.");
+                    thread::sleep(Duration::from_millis(500));
+                    if let Some(n) = millis_left.checked_sub(now.elapsed().as_millis()) {
+                        millis_left = n;
+                    } else {
+                        // Print here this one last time since the timer could otherwise stop at 0 h 0 min 1 s for example
+                        // which is quite annoying.
+                        println!("\rTime left: 0 h 0 min 0 s");
+                        return;
+                    }
+                } 
+            } else {
+                eprintln!("No task with the given id found.");
+            }
+        }
     }
 
     fn remove<'a, T>(items: &mut Items, mut args: T)

@@ -72,34 +72,20 @@ Add a new item of a given type.
 mtc add <type>
 ```
 
-Add a todo-item or a task on a specific weekday. This doesn't work for events.
-
-```
-mtc add <type> <weekday>
-```
-
 #### Remove
 
-Remove an item. Each item of a type has an unique numerical id. You can get the id with the `show` command. 
+Remove an item. The app will ask for an id. Each item of a type has an unique numerical id. You can get the id with the `show` command. 
 
 ```
-mtc remove <type> <id>
-```
-
-#### Move
-
-Move an item. For event the command asks for a new date. For tasks and todo-items, the app asks for a weekday.
-
-```
-mtc move <type> <id>
+mtc remove <type> 
 ```
 
 #### Do
 
-Start a timer for a task. The timer can be paused and resumed with `p`
+Start a timer for a task. The app will ask for an id of a task.
 
 ```
-mtc do <task id>
+mtc do 
 ```
 
 #### Sync
