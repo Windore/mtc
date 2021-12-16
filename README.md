@@ -6,7 +6,10 @@ MTC is a CLI time management app with the ability to synchronize todo-items, tas
 
 ## Installation
 
-This will be added soon.
+Installation is done using cargo.
+```
+cargo install --git https://github.com/Windore/mtc.git
+```
 
 ## Usage
 
