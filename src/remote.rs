@@ -44,7 +44,7 @@ fn download_file(session: &Session, remote_file_path: &Path) -> Result<String, E
 }
 
 fn upload_file(session: &Session, remote_file_path: &Path, content: &str) -> Result<(), Error> {
-    let mut remote_file = session.scp_send(remote_file_path, 0o644, content.len() as u64, None)?;
+    let mut remote_file = session.scp_send(remote_file_path, 0o644, content.bytes().len() as u64, None)?;
     remote_file.write(content.as_bytes())?;
 
     remote_file.send_eof()?;

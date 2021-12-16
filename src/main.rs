@@ -1,13 +1,13 @@
 use mtc::*;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::env;
 use std::fmt::Display;
 use std::io::{self, BufReader, BufWriter, Write};
 use std::path::Path;
 use std::str::FromStr;
-use std::{fs, fs::File};
-use std::time::{Duration, Instant};
 use std::thread;
+use std::time::{Duration, Instant};
+use std::{fs, fs::File};
 
 pub struct Items {
     pub todo_items: MtcList<TodoItem>,
@@ -32,6 +32,7 @@ mod commands {
             Some("add") => add_cmd::add(&mut items, args),
             Some("remove") => remove(&mut items, args),
             Some("do") => do_task(&items),
+            Some("sync") => sync::sync(&mut items, args),
             None => {
                 eprintln!("Not enough arguments.");
                 tip();
@@ -78,7 +79,7 @@ mod commands {
                         println!("\rTime left: 0 h 0 min 0 s");
                         return;
                     }
-                } 
+                }
             } else {
                 eprintln!("No task with the given id found.");
             }
@@ -90,44 +91,38 @@ mod commands {
         T: Iterator<Item = &'a str>,
     {
         match args.next() {
-            Some("todo-item") => {
-                loop {
-                    let id = read_id();
-                    if let Err(e) = items.todo_items.mark_removed(id) {
-                        eprintln!("{}", e);
-                    } else {
-                        break;
-                    }
+            Some("todo-item") => loop {
+                let id = read_id();
+                if let Err(e) = items.todo_items.mark_removed(id) {
+                    eprintln!("{}", e);
+                } else {
+                    break;
                 }
             },
-            Some("task") => {
-                loop {
-                    let id = read_id();
-                    if let Err(e) = items.tasks.mark_removed(id) {
-                        eprintln!("{}", e);
-                    } else {
-                        break;
-                    }
+            Some("task") => loop {
+                let id = read_id();
+                if let Err(e) = items.tasks.mark_removed(id) {
+                    eprintln!("{}", e);
+                } else {
+                    break;
                 }
             },
-            Some("event") => {
-                loop {
-                    let id = read_id();
-                    if let Err(e) = items.events.mark_removed(id) {
-                        eprintln!("{}", e);
-                    } else {
-                        break;
-                    }
+            Some("event") => loop {
+                let id = read_id();
+                if let Err(e) = items.events.mark_removed(id) {
+                    eprintln!("{}", e);
+                } else {
+                    break;
                 }
             },
             Some(typ) => {
                 eprintln!("Unknown type: '{}'", typ);
                 tip();
-            },
+            }
             None => {
                 eprintln!("No type specified.");
                 tip();
-            },
+            }
         }
     }
 
@@ -407,6 +402,99 @@ mod commands {
             for i in list.iter() {
                 println!("\t\t{}", i);
             }
+        }
+    }
+
+    mod sync {
+        use super::*;
+        use ssh2::Session;
+        use std::io::Error;
+        use std::net::TcpStream;
+
+        #[derive(Serialize, Deserialize)]
+        struct Config {
+            username: String,
+            address: String,
+            server_path: String,
+        }
+
+        pub fn sync<'a, T>(items: &mut Items, mut args: T)
+        where
+            T: Iterator<Item = &'a str>,
+        {
+            let mut overwrite = false;
+            match args.next() {
+                None => {}
+                Some("overwrite") => overwrite = true,
+                Some("self") => {
+                    items.todo_items.sync_self();
+                    items.tasks.sync_self();
+                    items.events.sync_self();
+                    return;
+                }
+                _ => {
+                    eprintln!("Unknown command.");
+                    tip();
+                    return;
+                }
+            }
+
+            match read_config() {
+                Ok(conf) => {
+                    if let Err(e) = connect(items, &conf, overwrite) {
+                        eprintln!("Failed to sync: {}", e);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Reading sync config failed.");
+                    eprintln!("{}", e);
+                }
+            }
+        }
+
+        fn connect(items: &mut Items, conf: &Config, overwrite: bool) -> Result<(), Error> {
+            let tcp = TcpStream::connect(&conf.address)?;
+            let mut sess = Session::new()?;
+            sess.set_tcp_stream(tcp);
+            sess.handshake()?;
+
+            let pass = rpassword::prompt_password_stdout(&format!(
+                "{}@{}'s password: ",
+                conf.username, conf.address
+            ))?;
+            sess.userauth_password(&conf.username, &pass)?;
+
+            sync_remote(
+                &sess,
+                &mut items.todo_items,
+                &Path::new(&conf.server_path).join(Path::new("todo-items.json")),
+                overwrite,
+            )?;
+            sync_remote(
+                &sess,
+                &mut items.tasks,
+                &Path::new(&conf.server_path).join(Path::new("tasks.json")),
+                overwrite,
+            )?;
+            sync_remote(
+                &sess,
+                &mut items.events,
+                &Path::new(&conf.server_path).join(Path::new("events.json")),
+                overwrite,
+            )?;
+
+            Ok(())
+        }
+
+        fn read_config() -> Result<Config, String> {
+            // From main we know that this should exist so unwrap is ok here.
+            // There may be some cases where this doesn't work but those are likely very rare...?
+            let path = dirs::data_dir().unwrap().join("mtc/sync-conf.json");
+
+            let file = File::open(path).map_err(|e| e.to_string())?;
+            let reader = BufReader::new(file);
+
+            serde_json::from_reader(reader).map_err(|e| e.to_string())
         }
     }
 }
