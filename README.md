@@ -72,43 +72,50 @@ Add a new item of a given type.
 mtc add <type>
 ```
 
-Add a todo-item or a task on a specific weekday. This doesn't work for events.
-
-```
-mtc add <type> <weekday>
-```
-
 #### Remove
 
-Remove an item. Each item of a type has an unique numerical id. You can get the id with the `show` command. 
+Remove an item. The app will ask for an id. Each item of a type has an unique numerical id. You can get the id with the `show` command. Note that the id may change for an item when syncing.
 
 ```
-mtc remove <type> <id>
-```
-
-#### Move
-
-Move an item. For event the command asks for a new date. For tasks and todo-items, the app asks for a weekday.
-
-```
-mtc move <type> <id>
+mtc remove <type> 
 ```
 
 #### Do
 
-Start a timer for a task. The timer can be paused and resumed with `p`
+Start a timer for a task. The app will ask for an id of a task.
 
 ```
-mtc do <task id>
+mtc do 
 ```
 
 #### Sync
 
-This will be added soon.
+Using sync requires a little bit setting up to do. The app expects a config file located in the mtc directory in the users data directory. For example in linux this config file is `~/.local/share/mtc/sync-conf.json`. Example of a config file:
+```
+{
+  "username": "user",
+  "address": "127.0.0.1:22",
+  "server_path": "/home/user/mtc/"
+}
+```
+Note that the server path needs to exist as the app doesn't create it automatically. Also sync currenly only supports password based authentication (as that is currenly what I need).
 
+First time syncing with a server requires using the following command.
+```
+mtc sync overwrite
+```
+This will overwrite the saved items on the server. Note: that if you have synced to a same server from any client, overwrite is not needed to sync with a new client. Only new servers require using overwrite.
+
+After the setup sync happens with the following command.
 ```
 mtc sync
 ```
+
+If for some reason the app is used only locally, the following command needs to be run occasionally:
+```
+mtc sync self
+```
+This is because internally the app doesn't actually remove items with the remove command. Instead it only marks them as removed and then sync finally removes them.
 
 #### Help
 

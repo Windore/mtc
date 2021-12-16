@@ -17,15 +17,16 @@ pub fn sync_remote<T>(
 where
     T: MtcItem + Clone + DeserializeOwned + Serialize,
 {
+    let mut server_list;
     if overwrite {
         client_list.sync_self();
-        return upload_file(session, server_path, &serde_json::to_string(client_list)?);
+        server_list = client_list.clone_to_server();
+    } else {
+        let content = download_file(session, server_path)?;
+        server_list = serde_json::from_str(&content)?;
+        client_list.sync(&mut server_list);
     }
 
-    let content = download_file(session, server_path)?;
-    let mut server_list: MtcList<T> = serde_json::from_str(&content)?;
-
-    client_list.sync(&mut server_list);
     upload_file(session, server_path, &serde_json::to_string(&server_list)?)
 }
 
@@ -43,7 +44,7 @@ fn download_file(session: &Session, remote_file_path: &Path) -> Result<String, E
 }
 
 fn upload_file(session: &Session, remote_file_path: &Path, content: &str) -> Result<(), Error> {
-    let mut remote_file = session.scp_send(remote_file_path, 0o644, content.len() as u64, None)?;
+    let mut remote_file = session.scp_send(remote_file_path, 0o644, content.bytes().len() as u64, None)?;
     remote_file.write(content.as_bytes())?;
 
     remote_file.send_eof()?;
