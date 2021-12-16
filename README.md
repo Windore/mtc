@@ -129,4 +129,4 @@ mtc help
 ```
 
 ## License
-This will be added soon.
+This project is licensed under the [MIT license](LICENSE.md).
