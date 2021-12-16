@@ -47,7 +47,24 @@ mod commands {
     }
 
     fn help() {
-        println!("TODO: Add help");
+        println!("MTC - My Time Contract - a CLI time management app.");
+        println!("usage: mtc <command> [<args>]");
+        println!("Read the README.md for more information");
+        println!("");
+        println!("Commands:");
+        println!("\tshow [<type> | weekday | today | month]");
+        println!("\tShows saved items.\n");
+        println!("\tadd <type>");
+        println!("\tAdds a item of a given type.\n");
+        println!("\tremove <type>");
+        println!("\tRemoves a item of a given type.\n");
+        println!("\tdo");
+        println!("\tShows a timer for a task.\n");
+        println!("\tsync [self | overwrite]");
+        println!("\tSyncs all items with a server specified by a config. Using 'self' or 'overwrite' isn't usually necessary nor recommended.\n");
+        println!("\thelp");
+        println!("\tShows this help output.");
+        
     }
 
     fn tip() {
