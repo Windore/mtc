@@ -25,7 +25,7 @@ Tasks are something that one expects to do every week on a specific weekday. The
 
 ### Events
 
-Events are like todo-items, but they have a specific date when they occur. `mtc` automatically removes events that are before the current date, when running **any** command.
+Events are like todo-items, but they have a specific date when they occur. 
 
 ### Commands
 
