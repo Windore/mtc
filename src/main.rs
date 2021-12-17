@@ -31,7 +31,7 @@ mod commands {
             Some("help") => help(),
             Some("add") => add_cmd::add(&mut items, args),
             Some("remove") => remove(&mut items, args),
-            Some("do") => do_task(&items),
+            Some("do") => do_task(&items, args),
             Some("sync") => sync::sync(&mut items, args),
             None => {
                 eprintln!("Not enough arguments.");
@@ -56,50 +56,55 @@ mod commands {
         println!("\tShows saved items.\n");
         println!("\tadd <type>");
         println!("\tAdds a item of a given type.\n");
-        println!("\tremove <type>");
+        println!("\tremove <type> <id>");
         println!("\tRemoves a item of a given type.\n");
-        println!("\tdo");
+        println!("\tdo <task id>");
         println!("\tShows a timer for a task.\n");
         println!("\tsync [self | overwrite]");
         println!("\tSyncs all items with a server specified by a config. Using 'self' or 'overwrite' isn't usually necessary nor recommended.\n");
         println!("\thelp");
         println!("\tShows this help output.");
-        
     }
 
     fn tip() {
         println!("Use: 'mtc help' for help.");
     }
 
-    fn do_task(items: &Items) {
-        loop {
-            let id = read_id();
+    fn do_task<'a, T>(items: &Items, args: T)
+    where
+        T: Iterator<Item = &'a str>,
+    {
+        let id = read_id(args);
+        if id.is_err() {
+            eprintln!("{}", id.err().unwrap());
+            return;
+        }
+        let id = id.unwrap();
 
-            if let Some(task) = items.tasks.items().get(id) {
-                let mut millis_left = task.duration() as u128 * 60_000;
-                loop {
-                    let now = Instant::now();
-                    // "Clear" the line.
-                    print!("\r                                 ");
-                    let seconds_left = millis_left / 1000;
-                    let hours = seconds_left / 3600;
-                    let minutes = (seconds_left - hours * 3600) / 60;
-                    let seconds = seconds_left - hours * 3600 - minutes * 60;
-                    print!("\rTime left: {} h {} min {} s", hours, minutes, seconds);
-                    io::stdout().flush().expect("Failed to flush stdout.");
-                    thread::sleep(Duration::from_millis(500));
-                    if let Some(n) = millis_left.checked_sub(now.elapsed().as_millis()) {
-                        millis_left = n;
-                    } else {
-                        // Print here this one last time since the timer could otherwise stop at 0 h 0 min 1 s for example
-                        // which is quite annoying.
-                        println!("\rTime left: 0 h 0 min 0 s");
-                        return;
-                    }
+        if let Some(task) = items.tasks.items().get(id) {
+            let mut millis_left = task.duration() as u128 * 60_000;
+            loop {
+                let now = Instant::now();
+                // "Clear" the line.
+                print!("\r                                 ");
+                let seconds_left = millis_left / 1000;
+                let hours = seconds_left / 3600;
+                let minutes = (seconds_left - hours * 3600) / 60;
+                let seconds = seconds_left - hours * 3600 - minutes * 60;
+                print!("\rTime left: {} h {} min {} s", hours, minutes, seconds);
+                io::stdout().flush().expect("Failed to flush stdout.");
+                thread::sleep(Duration::from_millis(500));
+                if let Some(n) = millis_left.checked_sub(now.elapsed().as_millis()) {
+                    millis_left = n;
+                } else {
+                    // Print here this one last time since the timer could otherwise stop at 0 h 0 min 1 s for example
+                    // which is quite annoying.
+                    println!("\rTime left: 0 h 0 min 0 s");
+                    return;
                 }
-            } else {
-                eprintln!("No task with the given id found.");
             }
+        } else {
+            eprintln!("No task with the given ID found.");
         }
     }
 
@@ -108,28 +113,37 @@ mod commands {
         T: Iterator<Item = &'a str>,
     {
         match args.next() {
-            Some("todo") => loop {
-                let id = read_id();
+            Some("todo") => {
+                let id = read_id(args);
+                if id.is_err() {
+                    eprintln!("{}", id.err().unwrap());
+                    return;
+                }
+                let id = id.unwrap();
                 if let Err(e) = items.todos.mark_removed(id) {
                     eprintln!("{}", e);
-                } else {
-                    break;
                 }
             },
-            Some("task") => loop {
-                let id = read_id();
+            Some("task") => {
+                let id = read_id(args);
+                if id.is_err() {
+                    eprintln!("{}", id.err().unwrap());
+                    return;
+                }
+                let id = id.unwrap();
                 if let Err(e) = items.tasks.mark_removed(id) {
                     eprintln!("{}", e);
-                } else {
-                    break;
                 }
             },
-            Some("event") => loop {
-                let id = read_id();
+            Some("event") => {
+                let id = read_id(args);
+                if id.is_err() {
+                    eprintln!("{}", id.err().unwrap());
+                    return;
+                }
+                let id = id.unwrap();
                 if let Err(e) = items.events.mark_removed(id) {
                     eprintln!("{}", e);
-                } else {
-                    break;
                 }
             },
             Some(typ) => {
@@ -143,23 +157,14 @@ mod commands {
         }
     }
 
-    fn read_id() -> usize {
-        loop {
-            print!("Input an ID: ");
-            io::stdout().flush().expect("Failed to flush stdout.");
-            let mut inp = String::new();
-            io::stdin()
-                .read_line(&mut inp)
-                .expect("Failed to read stdin.");
-            inp = inp.replace('\n', "");
-
-            match usize::from_str(&inp) {
-                Ok(n) => return n,
-                Err(_) => {
-                    eprintln!("Cannot parse '{}' to a number.", &inp);
-                }
-            }
+    fn read_id<'a, T>(mut args: T) -> Result<usize, &'static str>
+    where
+        T: Iterator<Item = &'a str>,
+    {
+        if let Some(s) = args.next() {
+            return usize::from_str(s).map_err(|_| "Invalid input. Input a valid ID.");
         }
+        Err("No ID specified.")
     }
 
     mod add_cmd {

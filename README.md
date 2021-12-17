@@ -81,7 +81,7 @@ mtc add <type>
 Remove an item. The app will ask for an id. Each item of a type has an unique numerical id. You can get the id with the `show` command. Note that the id may change for an item when syncing.
 
 ```
-mtc remove <type> 
+mtc remove <type> <id> 
 ```
 
 #### Do
@@ -89,7 +89,7 @@ mtc remove <type>
 Start a timer for a task. The app will ask for an id of a task.
 
 ```
-mtc do 
+mtc do <task id>
 ```
 
 #### Sync
