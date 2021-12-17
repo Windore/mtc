@@ -5,7 +5,7 @@ use std::fmt::Display;
 
 /// A short term task that should be done on a optionally given weekday.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub struct TodoItem {
+pub struct Todo {
     weekday: Option<Weekday>,
     body: String,
     state: ItemState,
@@ -31,10 +31,10 @@ pub struct Event {
     id: usize,
 }
 
-impl TodoItem {
-    /// Creates a new `TodoItem` with a given body and optionally a weekday.
-    pub fn new(body: String, weekday: Option<Weekday>) -> TodoItem {
-        TodoItem {
+impl Todo {
+    /// Creates a new `Todo` with a given body and optionally a weekday.
+    pub fn new(body: String, weekday: Option<Weekday>) -> Todo {
+        Todo {
             weekday,
             body,
             state: ItemState::Neutral,
@@ -42,17 +42,17 @@ impl TodoItem {
         }
     }
 
-    /// Returns a reference to the body of the `TodoItem`.
+    /// Returns a reference to the body of the `Todo`.
     pub fn body(&self) -> &String {
         &self.body
     }
 
-    /// Returns a optionally specified weekday of the `TodoItem`.
+    /// Returns a optionally specified weekday of the `Todo`.
     pub fn weekday(&self) -> Option<Weekday> {
         self.weekday
     }
 
-    /// Sets the optional weekday of the `TodoItem`.
+    /// Sets the optional weekday of the `Todo`.
     pub fn set_weekday(&mut self, new_weekday: Option<Weekday>) {
         self.weekday = new_weekday;
     }
@@ -118,16 +118,16 @@ impl Event {
     }
 }
 
-impl MtcItem for TodoItem {
-    /// Returns true if the `TodoItem` is for a given date.
+impl MtcItem for Todo {
+    /// Returns true if the `Todo` is for a given date.
     ///
     /// # Example
     ///
     /// ```
     /// use chrono::prelude::*;
-    /// use mtc::{TodoItem, MtcItem};
+    /// use mtc::{Todo, MtcItem};
     ///
-    /// let item = TodoItem::new("Do task A".to_string(), Some(Weekday::Mon));
+    /// let item = Todo::new("Do task A".to_string(), Some(Weekday::Mon));
     ///
     /// // 2021.12.6 was a monday.
     /// assert!(item.for_date(NaiveDate::from_ymd(2021, 12, 6)));
@@ -151,17 +151,17 @@ impl MtcItem for TodoItem {
     ///
     /// ```
     ///
-    /// use mtc::{TodoItem, ItemState, MtcItem};
+    /// use mtc::{Todo, ItemState, MtcItem};
     ///
-    /// let mut item1 = TodoItem::new("Task 1".to_string(), None);
+    /// let mut item1 = Todo::new("Task 1".to_string(), None);
     /// item1.set_state(ItemState::New);
     ///
-    /// let mut item2 = TodoItem::new("Task 1".to_string(), None);
+    /// let mut item2 = Todo::new("Task 1".to_string(), None);
     /// item2.set_state(ItemState::Neutral);
     ///
     /// assert!(item1.ignore_state_eq(&item2));
     /// ```
-    fn ignore_state_eq(&self, other: &TodoItem) -> bool {
+    fn ignore_state_eq(&self, other: &Todo) -> bool {
         self.body == other.body && self.weekday == other.weekday
     }
     fn id(&self) -> usize {
@@ -278,19 +278,19 @@ impl MtcItem for Event {
     }
 }
 
-impl Ord for TodoItem {
+impl Ord for Todo {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.body.cmp(&other.body)
     }
 }
 
-impl PartialOrd for TodoItem {
+impl PartialOrd for Todo {
     fn partial_cmp(&self, other: &Self) -> std::option::Option<std::cmp::Ordering> {
         Some(self.body.cmp(&other.body))
     }
 }
 
-impl Eq for TodoItem {}
+impl Eq for Todo {}
 
 impl Ord for Task {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
@@ -325,7 +325,7 @@ impl PartialOrd for Event {
 
 impl Eq for Event {}
 
-impl Display for TodoItem {
+impl Display for Todo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         write!(f, "{} (ID: {})", self.body, self.id)
     }
@@ -350,7 +350,7 @@ mod tests {
     #[test]
     fn todo_item_for_date_returns_true() {
         let date = NaiveDate::from_ymd(2021, 12, 6);
-        let ti = TodoItem::new("test".to_string(), Some(Weekday::Mon));
+        let ti = Todo::new("test".to_string(), Some(Weekday::Mon));
 
         assert!(ti.for_date(date));
     }
@@ -358,7 +358,7 @@ mod tests {
     #[test]
     fn todo_item_for_date_returns_false() {
         let date = NaiveDate::from_ymd(2021, 12, 6);
-        let ti = TodoItem::new("test".to_string(), Some(Weekday::Tue));
+        let ti = Todo::new("test".to_string(), Some(Weekday::Tue));
 
         assert!(!ti.for_date(date));
     }
@@ -397,10 +397,10 @@ mod tests {
 
     #[test]
     fn todo_item_ignore_state_eq_returns_true() {
-        let mut item1 = TodoItem::new("Task 1".to_string(), None);
+        let mut item1 = Todo::new("Task 1".to_string(), None);
         item1.set_state(ItemState::New);
 
-        let mut item2 = TodoItem::new("Task 1".to_string(), None);
+        let mut item2 = Todo::new("Task 1".to_string(), None);
         item2.set_state(ItemState::Neutral);
 
         assert!(item1.ignore_state_eq(&item2));
@@ -409,10 +409,10 @@ mod tests {
 
     #[test]
     fn todo_item_ignore_state_eq_returns_false() {
-        let mut item1 = TodoItem::new("Task 1".to_string(), Some(Weekday::Fri));
+        let mut item1 = Todo::new("Task 1".to_string(), Some(Weekday::Fri));
         item1.set_state(ItemState::New);
 
-        let mut item2 = TodoItem::new("Task 1".to_string(), None);
+        let mut item2 = Todo::new("Task 1".to_string(), None);
         item2.set_state(ItemState::Neutral);
 
         assert!(!item1.ignore_state_eq(&item2));
@@ -492,7 +492,7 @@ mod tests {
 
     #[test]
     fn todo_item_display_works() {
-        let todo_item = TodoItem::new("Do Task 1".to_string(), Some(Weekday::Mon));
+        let todo_item = Todo::new("Do Task 1".to_string(), Some(Weekday::Mon));
         assert_eq!(format!("{}", todo_item), "Do Task 1 (ID: 0)");
     }
 

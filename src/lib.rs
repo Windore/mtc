@@ -112,14 +112,14 @@ pub trait MtcItem {
     /// use chrono::prelude::{Weekday, NaiveDate};
     /// use mtc::{MtcItem, ItemState};
     ///
-    /// struct TodoItem {
+    /// struct Todo {
     ///     weekday: Option<Weekday>,
     ///     body: String,
     ///     state: ItemState,
     /// }
     ///
-    /// impl MtcItem for TodoItem {
-    ///     fn ignore_state_eq(&self, other: &TodoItem) -> bool {
+    /// impl MtcItem for Todo {
+    ///     fn ignore_state_eq(&self, other: &Todo) -> bool {
     ///         self.body == other.body && self.weekday == other.weekday
     ///     }
     ///     fn for_date(&self, date: NaiveDate) -> bool { todo!() }
@@ -129,13 +129,13 @@ pub trait MtcItem {
     ///     fn set_id(&mut self, id: usize) {}
     /// }
     ///
-    /// let item1 = TodoItem {
+    /// let item1 = Todo {
     ///     weekday: Some(Weekday::Mon),
     ///     body: "Item".to_string(),
     ///     state: ItemState::New,
     /// };
     ///
-    /// let item2 = TodoItem {
+    /// let item2 = Todo {
     ///     weekday: Some(Weekday::Mon),
     ///     body: "Item".to_string(),
     ///     state: ItemState::Neutral,
@@ -276,47 +276,47 @@ impl<T: MtcItem + Clone> MtcList<T> {
     /// # Examples
     ///
     /// ```
-    /// use mtc::{MtcList, TodoItem};
+    /// use mtc::{MtcList, Todo};
     /// use chrono::prelude::Weekday;
     ///
     /// let mut client_list = MtcList::new(false);
     ///
-    /// client_list.add(TodoItem::new("Task 1".to_string(), None));
-    /// client_list.add(TodoItem::new("Task 2".to_string(), Some(Weekday::Mon)));
-    /// client_list.add(TodoItem::new("Task 3".to_string(), Some(Weekday::Fri)));
+    /// client_list.add(Todo::new("Task 1".to_string(), None));
+    /// client_list.add(Todo::new("Task 2".to_string(), Some(Weekday::Mon)));
+    /// client_list.add(Todo::new("Task 3".to_string(), Some(Weekday::Fri)));
     ///
     /// // Set the state of all items in the client list from New to Neutral by using sync_self
     ///
     /// client_list.sync_self();
     ///
     /// // This one will have the state New
-    /// client_list.add(TodoItem::new("Task 4".to_string(), Some(Weekday::Sat)));
+    /// client_list.add(Todo::new("Task 4".to_string(), Some(Weekday::Sat)));
     ///
     /// // Set the Task 2 element to Removed
     /// client_list.mark_removed(1); // It will have the index of 1
     ///
     /// let mut server_list = MtcList::new(true);
-    /// server_list.add(TodoItem::new("Task 1".to_string(), None));
-    /// server_list.add(TodoItem::new("Task 2".to_string(), Some(Weekday::Mon)));
-    /// server_list.add(TodoItem::new("Task 5".to_string(), Some(Weekday::Mon)));
+    /// server_list.add(Todo::new("Task 1".to_string(), None));
+    /// server_list.add(Todo::new("Task 2".to_string(), Some(Weekday::Mon)));
+    /// server_list.add(Todo::new("Task 5".to_string(), Some(Weekday::Mon)));
     ///
     /// client_list.sync(&mut server_list);
     /// // server_list.sync(&mut client_list); may be used as well. There is no difference
     ///
     /// // The operation should result in the following list. Both server and client will have same items but the order may be different.
     /// let mut resultting_client_list = MtcList::new(false);
-    /// resultting_client_list.add(TodoItem::new("Task 1".to_string(), None));
-    /// resultting_client_list.add(TodoItem::new("Task 4".to_string(), Some(Weekday::Sat)));
-    /// resultting_client_list.add(TodoItem::new("Task 5".to_string(), Some(Weekday::Mon)));
+    /// resultting_client_list.add(Todo::new("Task 1".to_string(), None));
+    /// resultting_client_list.add(Todo::new("Task 4".to_string(), Some(Weekday::Sat)));
+    /// resultting_client_list.add(Todo::new("Task 5".to_string(), Some(Weekday::Mon)));
     ///
     /// // The resultting list needs to be self synced since the items otherwise would have the state New
     /// resultting_client_list.sync_self();
     ///
     /// // The only difference between the lists is the is_server field of both lists which is not a result of the sync function.
     /// let mut resultting_server_list = MtcList::new(true);
-    /// resultting_server_list.add(TodoItem::new("Task 1".to_string(), None));
-    /// resultting_server_list.add(TodoItem::new("Task 5".to_string(), Some(Weekday::Mon)));
-    /// resultting_server_list.add(TodoItem::new("Task 4".to_string(), Some(Weekday::Sat)));
+    /// resultting_server_list.add(Todo::new("Task 1".to_string(), None));
+    /// resultting_server_list.add(Todo::new("Task 5".to_string(), Some(Weekday::Mon)));
+    /// resultting_server_list.add(Todo::new("Task 4".to_string(), Some(Weekday::Sat)));
     ///
     /// assert_eq!(client_list, resultting_client_list);
     /// assert_eq!(server_list, resultting_server_list);
@@ -520,17 +520,17 @@ mod tests {
     #[test]
     fn mtc_list_for_date_returns_expected() {
         let mut list = MtcList::new(true);
-        list.add(TodoItem::new("test0".to_string(), None));
-        list.add(TodoItem::new("test1".to_string(), Some(Weekday::Tue)));
-        list.add(TodoItem::new("test2".to_string(), Some(Weekday::Wed)));
-        list.add(TodoItem::new("test3".to_string(), None));
-        list.add(TodoItem::new("test4".to_string(), Some(Weekday::Tue)));
+        list.add(Todo::new("test0".to_string(), None));
+        list.add(Todo::new("test1".to_string(), Some(Weekday::Tue)));
+        list.add(Todo::new("test2".to_string(), Some(Weekday::Wed)));
+        list.add(Todo::new("test3".to_string(), None));
+        list.add(Todo::new("test4".to_string(), Some(Weekday::Tue)));
 
         let mut expected = vec![
-            TodoItem::new("test0".to_string(), None),
-            TodoItem::new("test1".to_string(), Some(Weekday::Tue)),
-            TodoItem::new("test3".to_string(), None),
-            TodoItem::new("test4".to_string(), Some(Weekday::Tue)),
+            Todo::new("test0".to_string(), None),
+            Todo::new("test1".to_string(), Some(Weekday::Tue)),
+            Todo::new("test3".to_string(), None),
+            Todo::new("test4".to_string(), Some(Weekday::Tue)),
         ];
 
         expected[0].set_id(0);
@@ -538,7 +538,7 @@ mod tests {
         expected[2].set_id(3);
         expected[3].set_id(4);
 
-        let result: Vec<TodoItem> = list
+        let result: Vec<Todo> = list
             .items_for_date(NaiveDate::from_ymd(2021, 11, 30))
             .iter()
             .cloned()
@@ -1043,16 +1043,16 @@ mod tests {
     fn mtc_list_id_matches() {
         let mut client = MtcList::new(false);
 
-        client.add(TodoItem::new("Item 0".to_string(), Some(Weekday::Mon)));
-        client.add(TodoItem::new("Item 1".to_string(), Some(Weekday::Tue)));
-        client.add(TodoItem::new("Item 2".to_string(), Some(Weekday::Wed)));
+        client.add(Todo::new("Item 0".to_string(), Some(Weekday::Mon)));
+        client.add(Todo::new("Item 1".to_string(), Some(Weekday::Tue)));
+        client.add(Todo::new("Item 2".to_string(), Some(Weekday::Wed)));
 
         client.mark_removed(0).unwrap();
 
         client.sync_self();
 
         assert_eq!(client.items_for_weekday(Weekday::Wed)[0].id(), 1);
-        let mut item = TodoItem::new("Item 2".to_string(), Some(Weekday::Wed));
+        let mut item = Todo::new("Item 2".to_string(), Some(Weekday::Wed));
         item.set_id(1);
         assert_eq!(*client.items()[1], item);
     }
@@ -1061,14 +1061,14 @@ mod tests {
     fn mtc_list_doesnt_return_marked_as_removed() {
         let mut client = MtcList::new(false);
 
-        client.add(TodoItem::new("Item 0".to_string(), None));
-        client.add(TodoItem::new("Item 1".to_string(), None));
-        client.add(TodoItem::new("Item 2".to_string(), None));
+        client.add(Todo::new("Item 0".to_string(), None));
+        client.add(Todo::new("Item 1".to_string(), None));
+        client.add(Todo::new("Item 2".to_string(), None));
 
         client.mark_removed(1).unwrap();
 
         for item in client.items() {
-            assert!(!item.ignore_state_eq(&TodoItem::new("Item 1".to_string(), None)));
+            assert!(!item.ignore_state_eq(&Todo::new("Item 1".to_string(), None)));
         }
     }
 }

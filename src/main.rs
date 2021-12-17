@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use std::{fs, fs::File};
 
 pub struct Items {
-    pub todo_items: MtcList<TodoItem>,
+    pub todos: MtcList<Todo>,
     pub tasks: MtcList<Task>,
     pub events: MtcList<Event>,
 }
@@ -108,9 +108,9 @@ mod commands {
         T: Iterator<Item = &'a str>,
     {
         match args.next() {
-            Some("todo-item") => loop {
+            Some("todo") => loop {
                 let id = read_id();
-                if let Err(e) = items.todo_items.mark_removed(id) {
+                if let Err(e) = items.todos.mark_removed(id) {
                     eprintln!("{}", e);
                 } else {
                     break;
@@ -170,7 +170,7 @@ mod commands {
             T: Iterator<Item = &'a str>,
         {
             match args.next() {
-                Some("todo-item") => add_todo_item(items),
+                Some("todo") => add_todo(items),
                 Some("task") => add_task(items),
                 Some("event") => add_event(items),
                 Some(typ) => {
@@ -184,11 +184,11 @@ mod commands {
             }
         }
 
-        fn add_todo_item(items: &mut Items) {
-            println!("New todo-item: ");
+        fn add_todo(items: &mut Items) {
+            println!("New todo: ");
             let body = read_body();
             let weekday = read_weekday();
-            items.todo_items.add(TodoItem::new(body, weekday))
+            items.todos.add(Todo::new(body, weekday))
         }
 
         fn add_task(items: &mut Items) {
@@ -300,7 +300,7 @@ mod commands {
             T: Iterator<Item = &'a str>,
         {
             match args.next() {
-                Some("todo-items") => show_all_todo_items(items),
+                Some("todos") => show_all_todos(items),
                 Some("tasks") => show_all_tasks(items),
                 Some("events") => show_all_events(items),
                 Some("today") => show_today(items),
@@ -321,8 +321,8 @@ mod commands {
         fn show_all(items: &Items) {
             for wd in WEEKDAYS.iter() {
                 println!("{}", wd);
-                println!("\tTodo-Items: ");
-                show_list_weekday(&items.todo_items, *wd);
+                println!("\tTodos: ");
+                show_list_weekday(&items.todos, *wd);
                 println!("\tTasks: ");
                 show_list_weekday(&items.tasks, *wd);
             }
@@ -363,11 +363,11 @@ mod commands {
             }
         }
 
-        fn show_all_todo_items(items: &Items) {
+        fn show_all_todos(items: &Items) {
             for wd in WEEKDAYS.iter() {
                 println!("{}", wd);
-                println!("\tTodo-Items: ");
-                show_list_weekday(&items.todo_items, *wd);
+                println!("\tTodos: ");
+                show_list_weekday(&items.todos, *wd);
             }
         }
 
@@ -390,8 +390,8 @@ mod commands {
 
         fn show_all_date(items: &Items, date: NaiveDate) {
             println!("{} {}:", date.weekday(), date);
-            println!("\tTodo-Items: ");
-            show_list_date(&items.todo_items, date);
+            println!("\tTodos: ");
+            show_list_date(&items.todos, date);
 
             println!("\tTasks: ");
             show_list_date(&items.tasks, date);
@@ -444,7 +444,7 @@ mod commands {
                 None => {}
                 Some("overwrite") => overwrite = true,
                 Some("self") => {
-                    items.todo_items.sync_self();
+                    items.todos.sync_self();
                     items.tasks.sync_self();
                     items.events.sync_self();
                     return;
@@ -483,8 +483,8 @@ mod commands {
 
             sync_remote(
                 &sess,
-                &mut items.todo_items,
-                &Path::new(&conf.server_path).join(Path::new("todo-items.json")),
+                &mut items.todos,
+                &Path::new(&conf.server_path).join(Path::new("todos.json")),
                 overwrite,
             )?;
             sync_remote(
@@ -545,16 +545,16 @@ fn main() {
 }
 
 fn read_items(dir: &Path) -> Result<Items, String> {
-    let todo_item_file = dir.join(Path::new("todo-items.json"));
+    let todo_file = dir.join(Path::new("todos.json"));
     let task_file = dir.join(Path::new("tasks.json"));
     let event_file = dir.join(Path::new("events.json"));
 
-    let todo_items = read_item(&todo_item_file)?;
+    let todos = read_item(&todo_file)?;
     let tasks = read_item(&task_file)?;
     let events = read_item(&event_file)?;
 
     Ok(Items {
-        todo_items,
+        todos,
         tasks,
         events,
     })
@@ -572,11 +572,11 @@ fn read_item<T: MtcItem + Clone + DeserializeOwned>(path: &Path) -> Result<MtcLi
 }
 
 fn write_items(dir: &Path, items: Items) -> Result<(), String> {
-    let todo_item_file = dir.join(Path::new("todo-items.json"));
+    let todo_file = dir.join(Path::new("todos.json"));
     let task_file = dir.join(Path::new("tasks.json"));
     let event_file = dir.join(Path::new("events.json"));
 
-    write_item(items.todo_items, &todo_item_file)?;
+    write_item(items.todos, &todo_file)?;
     write_item(items.tasks, &task_file)?;
     write_item(items.events, &event_file)?;
 
