@@ -210,7 +210,7 @@ impl<T: MtcItem + Clone> MtcList<T> {
         }
     }
 
-    /// Returns a new vector containing references to all items within this list in the same order.
+    /// Returns a new vector containing references to all items within this list in the same order. Note that this filters all items that are marked as removed.
     pub fn items(&self) -> Vec<&T> {
         let mut new = Vec::new();
 

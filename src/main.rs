@@ -81,7 +81,7 @@ mod commands {
         }
         let id = id.unwrap();
 
-        if let Some(task) = items.tasks.items().get(id) {
+        if let Some(task) = items.tasks.items().iter().find(|item| item.id() == id) {
             let mut millis_left = task.duration() as u128 * 60_000;
             loop {
                 let now = Instant::now();
