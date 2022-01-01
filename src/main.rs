@@ -193,7 +193,7 @@ mod commands {
             println!("New todo: ");
             let body = read_body();
             let weekday = read_weekday();
-            items.todos.add(Todo::new(body, weekday))
+            items.todos.add(Todo::new(body, weekday));
         }
 
         fn add_task(items: &mut Items) {
@@ -201,14 +201,14 @@ mod commands {
             let body = read_body();
             let duration = read_duration();
             let weekday = read_weekday();
-            items.tasks.add(Task::new(body, duration, weekday))
+            items.tasks.add(Task::new(body, duration, weekday));
         }
 
         fn add_event(items: &mut Items) {
             println!("New event: ");
             let body = read_body();
             let date = read_date();
-            items.events.add(Event::new(body, date))
+            items.events.add(Event::new(body, date));
         }
 
         fn read_weekday() -> Option<Weekday> {

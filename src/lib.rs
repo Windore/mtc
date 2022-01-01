@@ -179,15 +179,18 @@ impl<T: MtcItem + Clone> MtcList<T> {
         }
     }
 
-    /// Appends a new MtcItem to the list setting the items state to new.
-    pub fn add(&mut self, mut item: T) {
+    /// Appends a new MtcItem to the list setting the item's state to new. Returns the id of the item.
+    pub fn add(&mut self, mut item: T) -> usize {
         if self.is_server {
             item.set_state(ItemState::Neutral);
         } else {
             item.set_state(ItemState::New);
         }
         item.set_id(self.items.len());
+        let id = item.id();
         self.items.push(item);
+
+        id
     }
 
     /// Marks a MtcItem of a given id to be removed. The id is the same as the index in the inner `Vec`. Returns `Err(&str)` if index is out of bounds.
