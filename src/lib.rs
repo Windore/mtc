@@ -213,6 +213,18 @@ impl<T: MtcItem + Clone> MtcList<T> {
         }
     }
 
+    /// Returns a reference to the item with the id if it exists.
+    pub fn get_by_id(&self, id: usize) -> Option<&T> {
+        let item = self.items.get(id);
+        item.map_or(None, |i| {
+            if i.state() != ItemState::Removed {
+                Some(i)
+            } else {
+                None
+            }
+        })
+    }
+
     /// Returns a new vector containing references to all items within this list in the same order. Note that this filters all items that are marked as removed.
     pub fn items(&self) -> Vec<&T> {
         let mut new = Vec::new();
@@ -660,6 +672,21 @@ mod tests {
             .collect();
 
         assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn mtc_list_get_by_id_returns_some_and_none() {
+        let todo = Todo::new("Item".to_string(), None);
+        let mut list = MtcList::new(false);
+        let id = list.add(todo.clone());
+
+        assert_eq!(todo.body(), list.get_by_id(id).unwrap().body());
+        assert_eq!(todo.weekday(), list.get_by_id(id).unwrap().weekday());
+
+        list.mark_removed(id).unwrap();
+
+        assert_eq!(None, list.get_by_id(id));
+        assert_eq!(None, list.get_by_id(66));
     }
 
     #[derive(Debug, PartialEq, Clone)]
