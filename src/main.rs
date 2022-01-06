@@ -444,6 +444,9 @@ mod commands {
         where
             T: Iterator<Item = &'a str>,
         {
+            // Only events can expire
+            items.events.remove_expired();
+
             let mut overwrite = false;
             match args.next() {
                 None => {}

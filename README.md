@@ -26,7 +26,7 @@ Tasks are something that one expects to do every week on a specific weekday. The
 
 ### Events
 
-Events are like todos, but they have a specific date when they occur. 
+Events are like todos, but they have a specific date when they occur. Events that are more than three days old are removed automatically during sync.
 
 ### Commands
 

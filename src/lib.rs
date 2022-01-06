@@ -36,6 +36,7 @@ pub trait MtcItem {
     ///     fn ignore_state_eq(&self, other: &Self) -> bool { todo!() }
     ///     fn id(&self) -> usize { 0 }
     ///     fn set_id(&mut self, id: usize) {}
+    ///     fn expired(&self) -> bool { todo!() }
     /// }
     ///
     /// assert!(WeekdayItem { weekday: Weekday::Mon }.for_date(NaiveDate::from_ymd(2021, 12, 6)));
@@ -62,6 +63,7 @@ pub trait MtcItem {
     ///     fn ignore_state_eq(&self, other: &Self) -> bool { todo!() }
     ///     fn id(&self) -> usize { 0 }
     ///     fn set_id(&mut self, id: usize) {}
+    ///     fn expired(&self) -> bool { todo!() }
     /// }
     ///
     /// assert!(WeekdayItem { weekday: Local::today().weekday() }.for_today());
@@ -89,6 +91,7 @@ pub trait MtcItem {
     ///     fn ignore_state_eq(&self, other: &Self) -> bool { todo!() }
     ///     fn id(&self) -> usize { 0 }
     ///     fn set_id(&mut self, id: usize) {}
+    ///     fn expired(&self) -> bool { todo!() }
     /// }
     ///
     /// assert!(WeekdayItem { weekday: Weekday::Fri }.for_weekday(Weekday::Fri));
@@ -127,6 +130,7 @@ pub trait MtcItem {
     ///     fn set_state(&mut self, state: ItemState) { todo!() }
     ///     fn id(&self) -> usize { 0 }
     ///     fn set_id(&mut self, id: usize) {}
+    ///     fn expired(&self) -> bool { todo!() }
     /// }
     ///
     /// let item1 = Todo {
@@ -148,6 +152,8 @@ pub trait MtcItem {
     fn id(&self) -> usize;
     /// Sets the id of the items. `MtcList` usually handles setting the id so in most cases calling this manually is not needed.
     fn set_id(&mut self, new_id: usize);
+    /// Returns true if the MtcItem is expired.
+    fn expired(&self) -> bool;
 }
 
 /// A state of an MtcItem used for synchronising MtcLists correctly
@@ -407,6 +413,15 @@ impl<T: MtcItem + Clone> MtcList<T> {
         server_list.sync_self();
     }
 
+    /// Removes all MtcItems that are expired.
+    pub fn remove_expired(&mut self) {
+        for item in self.items.iter_mut() {
+            if item.expired() {
+                item.set_state(ItemState::Removed);
+            }
+        }
+    }
+
     fn map_indices_to_ids(&mut self) {
         for (i, item) in self.items.iter_mut().enumerate() {
             item.set_id(i);
@@ -440,6 +455,9 @@ mod tests {
             fn set_id(&mut self, _: usize) {
                 todo!()
             }
+            fn expired(&self) -> bool {
+                todo!()
+            }
         }
 
         let item = TestItem {};
@@ -467,6 +485,9 @@ mod tests {
                 todo!()
             }
             fn set_id(&mut self, _: usize) {
+                todo!()
+            }
+            fn expired(&self) -> bool {
                 todo!()
             }
         }
@@ -498,6 +519,9 @@ mod tests {
             fn set_id(&mut self, _: usize) {
                 todo!()
             }
+            fn expired(&self) -> bool {
+                todo!()
+            }
         }
 
         let item = TestItem {};
@@ -525,6 +549,9 @@ mod tests {
                 0
             }
             fn set_id(&mut self, _: usize) {}
+            fn expired(&self) -> bool {
+                todo!()
+            }
         }
 
         let item = TestItem {};
@@ -735,6 +762,9 @@ mod tests {
             0
         }
         fn set_id(&mut self, _: usize) {}
+        fn expired(&self) -> bool {
+            todo!()
+        }
     }
 
     #[test]
@@ -1100,5 +1130,42 @@ mod tests {
         for item in client.items() {
             assert!(!item.ignore_state_eq(&Todo::new("Item 1".to_string(), None)));
         }
+    }
+
+    #[test]
+    fn mtc_remove_expired_removes_correct() {
+        let mut client = MtcList::new(false);
+
+        let today = Local::today().naive_local();
+
+        client.add(Event::new("Event 1".to_string(), today));
+        client.add(Event::new("Event 2".to_string(), today.succ()));
+        client.add(Event::new("Event 3".to_string(), today.pred()));
+        client.add(Event::new("Event 4".to_string(), today.pred().pred().pred().pred()));
+        client.add(Event::new("Event 5".to_string(), today.pred().pred().pred().pred().pred().pred()));
+
+        let mut exp: Vec<Event> = vec![
+            Event::new("Event 1".to_string(), today),
+            Event::new("Event 2".to_string(), today.succ()),
+            Event::new("Event 3".to_string(), today.pred())
+        ];
+        let mut id_counter = 0;
+        exp.iter_mut().for_each(|x| {
+            x.set_state(ItemState::Neutral);
+            x.set_id(id_counter);
+            id_counter += 1;
+        });
+
+        client.remove_expired();
+        client.sync_self();
+
+        let result: Vec<Event> = client
+            .items()
+            .iter()
+            .cloned()
+            .cloned()
+            .collect();
+
+        assert_eq!(exp, result);
     }
 }
