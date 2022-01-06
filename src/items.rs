@@ -170,6 +170,9 @@ impl MtcItem for Todo {
     fn set_id(&mut self, new_id: usize) {
         self.id = new_id;
     }
+    fn expired(&self) -> bool {
+        false
+    }
 }
 
 impl MtcItem for Task {
@@ -224,7 +227,9 @@ impl MtcItem for Task {
     fn set_id(&mut self, new_id: usize) {
         self.id = new_id;
     }
-
+    fn expired(&self) -> bool {
+        false
+    }
 }
 
 impl MtcItem for Event {
@@ -275,6 +280,10 @@ impl MtcItem for Event {
     }
     fn set_id(&mut self, new_id: usize) {
         self.id = new_id;
+    }
+    fn expired(&self) -> bool {
+        let today = Local::today().naive_local();
+        return self.date.signed_duration_since(today).num_days() < -3;
     }
 }
 
@@ -333,7 +342,11 @@ impl Display for Todo {
 
 impl Display for Task {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        write!(f, "{}: {} minutes (ID: {})", self.body, self.duration, self.id)
+        write!(
+            f,
+            "{}: {} minutes (ID: {})",
+            self.body, self.duration, self.id
+        )
     }
 }
 
@@ -506,5 +519,24 @@ mod tests {
     fn event_display_works() {
         let event = Event::new("Event 1".to_string(), NaiveDate::from_ymd(2021, 1, 5));
         assert_eq!(format!("{}", event), "2021-01-05: Event 1 (ID: 0)");
+    }
+
+    #[test]
+    fn event_is_expired_works() {
+        let today = Local::today().naive_local();
+        let event = Event::new("Event 1".to_string(), today);
+        assert!(!event.expired());
+
+        let event = Event::new("Event 1".to_string(), today.pred());
+        assert!(!event.expired());
+
+        let event = Event::new("Event 1".to_string(), today.succ());
+        assert!(!event.expired());
+
+        let event = Event::new("Event 1".to_string(), today.pred().pred().pred());
+        assert!(!event.expired());
+
+        let event = Event::new("Event 1".to_string(), today.pred().pred().pred().pred());
+        assert!(event.expired());
     }
 }
