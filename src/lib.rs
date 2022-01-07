@@ -14,7 +14,7 @@ pub use crate::items::*;
 mod remote;
 pub use crate::remote::*;
 
-/// An Item for MtcList. A struct implementing MtcItem is usually defined for a specific time and it has a state.
+/// An Item for `MtcList`. A struct implementing `MtcItem` is usually defined for a specific time and it has a `ItemState`.
 pub trait MtcItem {
     /// Returns true if the item is for a given date.
     ///
@@ -148,27 +148,27 @@ pub trait MtcItem {
     /// assert!(item1.ignore_state_eq(&item2));
     /// ```
     fn ignore_state_eq(&self, other: &Self) -> bool;
-    /// Gets the id of the item. Returns -1 if the item is not in a `MtcList`
+    /// Gets the id of the item. 
     fn id(&self) -> usize;
-    /// Sets the id of the items. `MtcList` usually handles setting the id so in most cases calling this manually is not needed.
+    /// Sets the id of the items. `MtcList` usually handles setting the id so in most cases calling this manually is not needed nor recommended.
     fn set_id(&mut self, new_id: usize);
-    /// Returns true if the MtcItem is expired.
+    /// Returns true if the item is expired.
     fn expired(&self) -> bool;
 }
 
-/// A state of an MtcItem used for synchronising MtcLists correctly
+/// A state of a `MtcItem` used for synchronising `MtcList`s correctly
 #[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
 pub enum ItemState {
-    /// MtcItem is a new item and the server list does not contain it
+    /// `MtcItem` is a new item and the server list does not contain it
     New,
-    /// MtcItem is removed and if it exists on the server it should be removed from there too.
+    /// `MtcItem` is removed and if it exists on the server it should be removed from there too.
     Removed,
-    /// MtcItem is not new nor should it be removed. If it doesn't exist on the server it will be removed.
+    /// `MtcItem` is not new nor should it be removed. If it doesn't exist on the server it will be removed.
     Neutral,
 }
 
-/// A wrapper for a Vec containing MtcItems. The wrapper helps to manage the state of the items and sync them correctly.
-/// A MtcList can be either a client or a server list which affect the functionality of the list. Server lists don't track
+/// A wrapper for a `Vec` containing `MtcItem`s. The wrapper helps to manage the state of the items and sync them correctly.
+/// A `MtcList` can be either a client or a server list which affect the functionality of the list. Server lists don't track
 /// the state since multiple clients could be interacting with the same server.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct MtcList<T: MtcItem + Clone> {
@@ -177,7 +177,7 @@ pub struct MtcList<T: MtcItem + Clone> {
 }
 
 impl<T: MtcItem + Clone> MtcList<T> {
-    /// Creates a new MtcList which will be either a server or a client.
+    /// Creates a new `MtcList` which will be either a server or a client.
     pub fn new(is_server: bool) -> MtcList<T> {
         MtcList {
             items: Vec::new(),
@@ -185,7 +185,7 @@ impl<T: MtcItem + Clone> MtcList<T> {
         }
     }
 
-    /// Appends a new MtcItem to the list setting the item's state to new. Returns the id of the item.
+    /// Appends a new `MtcItem` to the list setting the item's state to new. Returns the id of the item.
     pub fn add(&mut self, mut item: T) -> usize {
         if self.is_server {
             item.set_state(ItemState::Neutral);
@@ -199,7 +199,7 @@ impl<T: MtcItem + Clone> MtcList<T> {
         id
     }
 
-    /// Marks a MtcItem of a given id to be removed. The id is the same as the index in the inner `Vec`. Returns `Err(&str)` if index is out of bounds.
+    /// Marks a `MtcItem` of a given id to be removed. The id is the same as the index in the inner `Vec`. Returns `Err(&str)` if index is out of bounds. The string can be shown to the user.
     pub fn mark_removed(&mut self, id: usize) -> Result<(), &str> {
         if let Some(item) = self.items.get_mut(id) {
             if self.is_server {
@@ -231,7 +231,7 @@ impl<T: MtcItem + Clone> MtcList<T> {
         })
     }
 
-    /// Returns a new vector containing references to all items within this list in the same order. Note that this filters all items that are marked as removed.
+    /// Returns a new `Vec` containing references to all items within this list in the same order. Note that this filters all items that are marked as removed.
     pub fn items(&self) -> Vec<&T> {
         let mut new = Vec::new();
 
@@ -244,7 +244,7 @@ impl<T: MtcItem + Clone> MtcList<T> {
         new
     }
 
-    /// Returns a new vector containing references to all items that are for a given date.
+    /// Returns a new `Vec` containing references to all items that are for a given date.
     pub fn items_for_date(&self, date: NaiveDate) -> Vec<&T> {
         self.items()
             .into_iter()
@@ -252,7 +252,7 @@ impl<T: MtcItem + Clone> MtcList<T> {
             .collect()
     }
 
-    /// Return a new vector containing references to all items that are for today.
+    /// Return a new `Vec` containing references to all items that are for today.
     pub fn items_for_today(&self) -> Vec<&T> {
         self.items()
             .into_iter()
@@ -260,7 +260,7 @@ impl<T: MtcItem + Clone> MtcList<T> {
             .collect()
     }
 
-    /// Return a vector containing references to all items that are for a given weekday.
+    /// Return a `Vec` containing references to all items that are for a given weekday.
     pub fn items_for_weekday(&self, weekday: Weekday) -> Vec<&T> {
         self.items()
             .into_iter()
@@ -268,7 +268,7 @@ impl<T: MtcItem + Clone> MtcList<T> {
             .collect()
     }
 
-    /// Returns a clone of self but as a server
+    /// Returns a clone of this list but as a server
     pub fn clone_to_server(&self) -> MtcList<T> {
         let mut clone = self.clone();
         clone.is_server = true;
@@ -277,7 +277,7 @@ impl<T: MtcItem + Clone> MtcList<T> {
         clone
     }
 
-    /// Synchronizes the list with itself by removing all items with the Removed state and setting the state of the rest to Neutral.
+    /// Synchronizes the list with itself by removing all items with the `Removed` state and setting the state of the rest to `Neutral`.
     pub fn sync_self(&mut self) {
         self.items.retain(|item| item.state() != ItemState::Removed);
         for (i, item) in self.items.iter_mut().enumerate() {
@@ -286,7 +286,7 @@ impl<T: MtcItem + Clone> MtcList<T> {
         }
     }
 
-    /// Synchronizes this MtcList with the other MtcList.
+    /// Synchronizes this `MtcList` with the other `MtcList`.
     /// Either one of these lists is expected to be a server and the other a client.
     /// Removes items that are marked for removal.
     ///
@@ -413,7 +413,7 @@ impl<T: MtcItem + Clone> MtcList<T> {
         server_list.sync_self();
     }
 
-    /// Removes all MtcItems that are expired.
+    /// Removes all `MtcItem`s that are expired.
     pub fn remove_expired(&mut self) {
         for item in self.items.iter_mut() {
             if item.expired() {

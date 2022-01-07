@@ -3,7 +3,7 @@ use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-/// A short term task that should be done on a optionally given weekday.
+/// A short-term task that should be done on a optionally given weekday.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Todo {
     weekday: Option<Weekday>,
@@ -12,7 +12,7 @@ pub struct Todo {
     id: usize,
 }
 
-/// A repetitive task with a duration in minutes for a optionally given day.
+/// A repeating task with a duration in minutes for a optionally given weekday.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Task {
     weekday: Option<Weekday>,
@@ -22,7 +22,7 @@ pub struct Task {
     id: usize,
 }
 
-/// An event that will happen on a given date and optionally a time.
+/// An event that will happen on a given date.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Event {
     date: NaiveDate,
@@ -47,7 +47,7 @@ impl Todo {
         &self.body
     }
 
-    /// Returns a optionally specified weekday of the `Todo`.
+    /// Returns the optionally specified weekday of the `Todo`.
     pub fn weekday(&self) -> Option<Weekday> {
         self.weekday
     }
@@ -145,7 +145,7 @@ impl MtcItem for Todo {
     fn set_state(&mut self, new_state: ItemState) {
         self.state = new_state;
     }
-    /// Returns true if self and other are equal except for the state which can differ.
+    /// Returns true if self and other are equal excluding the `ItemState` of both self and other.
     ///
     /// # Example
     ///
@@ -202,7 +202,7 @@ impl MtcItem for Task {
     fn set_state(&mut self, new_state: ItemState) {
         self.state = new_state;
     }
-    /// Returns true if self and other are equal except for the state which can differ.
+    /// Returns true if self and other are equal excluding the `ItemState` of both self and other.
     ///
     /// # Example
     ///
@@ -255,7 +255,7 @@ impl MtcItem for Event {
     fn set_state(&mut self, new_state: ItemState) {
         self.state = new_state;
     }
-    /// Returns true if self and other are equal except for the state which can differ.
+    /// Returns true if self and other are equal excluding the `ItemState` of both self and other.
     ///
     /// # Example
     ///

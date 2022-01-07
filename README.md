@@ -1,13 +1,13 @@
 # MTC - My Time Contract
 
-A CLI time management app with the ability to synchronize todos, tasks and events via a server using a SSH connection. It also has a public API for writing additional interfaces.
+A CLI time management app with the ability to synchronize todos, tasks and events via a server using a SSH connection. 
 
-`mtc` is an yet another time-management app as enough of those don't exist yet. The main purpose of this app is to serve as simple rust practice for me while also allowing me to sync my todo-lists and events using my home server.
+MTC is an yet another time-management app as enough of those don't exist yet. The main purpose of this app is to serve as simple rust practice for me while also allowing me to sync my todo-lists and events using my home server. There is also an [android app](https://github.com/Windore/mtc-android) for MTC.
 
+MTC also has a public API for writing additional interfaces. Clone the project and run `cargo doc --open` to access the documentation of the API. Note that the documentation doesn't have that many examples. Instead you can check out the [mtc-android project](https://github.com/Windore/mtc-android) for an example project using this API. However, code there is probably not the most well written since I didn't bother to do anything else but to make it work.
 ## Installation
 
-Installation is done using cargo.
-
+You can install MTC using the following command. The same command is used for updating MTC as well.
 ```
 cargo install --git https://github.com/Windore/mtc.git
 ```
