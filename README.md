@@ -112,7 +112,7 @@ First time syncing with a server requires using the following command.
 mtc sync overwrite
 ```
 
-This will overwrite the saved items on the server. Note: that if you have synced to a same server from any client, overwrite is not needed to sync with a new client. Only new servers require using overwrite.
+This will overwrite the saved items on the server. Note: that if you have synced to a same server from any client, overwrite is not needed to sync with a new client. Only new servers require using overwrite. Overwrite is used because it automatically creates the initial server files instead of trying to look for them and failing.
 
 After the setup sync happens with the following command.
 
