@@ -122,12 +122,12 @@ pub trait MtcItem {
     /// }
     ///
     /// impl MtcItem for Todo {
-    ///     fn ignore_state_eq(&self, other: &Todo) -> bool {
-    ///         self.body == other.body && self.weekday == other.weekday
-    ///     }
     ///     fn for_date(&self, date: NaiveDate) -> bool { todo!() }
     ///     fn state(&self) -> ItemState { todo!() }
     ///     fn set_state(&mut self, state: ItemState) { todo!() }
+    ///     fn ignore_state_eq(&self, other: &Todo) -> bool {
+    ///         self.body == other.body && self.weekday == other.weekday
+    ///     }
     ///     fn id(&self) -> usize { 0 }
     ///     fn set_id(&mut self, id: usize) {}
     ///     fn expired(&self) -> bool { todo!() }
@@ -203,7 +203,6 @@ impl<T: MtcItem + Clone> MtcList<T> {
     pub fn mark_removed(&mut self, id: usize) -> Result<(), &str> {
         if let Some(item) = self.items.get_mut(id) {
             if self.is_server {
-                drop(item);
                 self.items.remove(id);
                 self.map_indices_to_ids();
             } else {
@@ -325,22 +324,22 @@ impl<T: MtcItem + Clone> MtcList<T> {
     /// // server_list.sync(&mut client_list); may be used as well. There is no difference
     ///
     /// // The operation should result in the following list. Both server and client will have same items but the order may be different.
-    /// let mut resultting_client_list = MtcList::new(false);
-    /// resultting_client_list.add(Todo::new("Task 1".to_string(), None));
-    /// resultting_client_list.add(Todo::new("Task 4".to_string(), Some(Weekday::Sat)));
-    /// resultting_client_list.add(Todo::new("Task 5".to_string(), Some(Weekday::Mon)));
+    /// let mut resulting_client_list = MtcList::new(false);
+    /// resulting_client_list.add(Todo::new("Task 1".to_string(), None));
+    /// resulting_client_list.add(Todo::new("Task 4".to_string(), Some(Weekday::Sat)));
+    /// resulting_client_list.add(Todo::new("Task 5".to_string(), Some(Weekday::Mon)));
     ///
-    /// // The resultting list needs to be self synced since the items otherwise would have the state New
-    /// resultting_client_list.sync_self();
+    /// // The resulting list needs to be self synced since the items otherwise would have the state New
+    /// resulting_client_list.sync_self();
     ///
     /// // The only difference between the lists is the is_server field of both lists which is not a result of the sync function.
-    /// let mut resultting_server_list = MtcList::new(true);
-    /// resultting_server_list.add(Todo::new("Task 1".to_string(), None));
-    /// resultting_server_list.add(Todo::new("Task 5".to_string(), Some(Weekday::Mon)));
-    /// resultting_server_list.add(Todo::new("Task 4".to_string(), Some(Weekday::Sat)));
+    /// let mut resulting_server_list = MtcList::new(true);
+    /// resulting_server_list.add(Todo::new("Task 1".to_string(), None));
+    /// resulting_server_list.add(Todo::new("Task 5".to_string(), Some(Weekday::Mon)));
+    /// resulting_server_list.add(Todo::new("Task 4".to_string(), Some(Weekday::Sat)));
     ///
-    /// assert_eq!(client_list, resultting_client_list);
-    /// assert_eq!(server_list, resultting_server_list);
+    /// assert_eq!(client_list, resulting_client_list);
+    /// assert_eq!(server_list, resulting_server_list);
     /// ```
     pub fn sync(&mut self, other: &mut MtcList<T>) {
         if self.is_server && other.is_server {
@@ -927,7 +926,7 @@ mod tests {
     }
 
     #[test]
-    fn mtc_list_sync_removes_nonnew_from_client() {
+    fn mtc_list_sync_removes_non_new_from_client() {
         let mut client_list = MtcList::new(false);
         let mut server_list = MtcList::new(true);
 

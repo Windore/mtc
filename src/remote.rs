@@ -4,7 +4,7 @@ use ssh2::Session;
 use std::io::{Error, Read, Write};
 use std::path::Path;
 
-/// Synchronizes a client `MtcList` with a server `MtcList` on on a remote server using a given `&ssh2::Session`.
+/// Synchronizes a client `MtcList` with a server `MtcList` on on a remote server using a given `&ssh2::Session`. ([ssh2](../ssh2/index.html) documents how to create a session.)
 /// The `server_path` should be a path to the saved `MtcList` on the server.
 /// Setting `overwrite` to true will result in the `client_list` being synced with itself
 /// with a copy of the list being sent to the server. If the server doesn't have a file yet then `overwrite` should be true.

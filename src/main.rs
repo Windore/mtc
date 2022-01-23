@@ -50,7 +50,7 @@ mod commands {
         println!("MTC - My Time Contract - a CLI time management app.");
         println!("usage: mtc <command> [<args>]");
         println!("Read the README.md for more information");
-        println!("");
+        println!();
         println!("Commands:");
         println!("\tshow [<type> | weekday | today | month]");
         println!("\tShows saved items.\n");

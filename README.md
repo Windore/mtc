@@ -1,32 +1,46 @@
 # MTC - My Time Contract
 
-A CLI time management app with the ability to synchronize todos, tasks and events via a server using a SSH connection. 
+A CLI time management app with the ability to synchronize todos, tasks and events via a server using an SSH connection.
 
-MTC is an yet another time-management app as enough of those don't exist yet. The main purpose of this app is to serve as simple rust practice for me while also allowing me to sync my todo-lists and events using my home server. There is also an [android app](https://github.com/Windore/mtc-android) for MTC.
+MTC is a yet another time-management app as enough of those don't exist yet. The main purpose of this app is to serve as
+simple rust practice for me while also allowing me to sync my todo-lists and events using my home server. There is also
+an [android app](https://github.com/Windore/mtc-android) for MTC.
 
-MTC also has a public API for writing additional interfaces. Clone the project and run `cargo doc --open` to access the documentation of the API. Note that the documentation doesn't have that many examples. Instead you can check out the [mtc-android project](https://github.com/Windore/mtc-android) for an example project using this API. However, code there is probably not the most well written since I didn't bother to do anything else but to make it work.
+MTC also has a public API for writing additional interfaces. Clone the project and run `cargo doc --open` to access the
+documentation of the API. Note that the documentation doesn't have that many examples. Instead, you can check out
+the [mtc-android project](https://github.com/Windore/mtc-android) for an example project using this API. However, code
+there is probably not the most well written since I didn't bother to do anything else but to make it work.
+
 ## Installation
 
 You can install MTC using the following command. The same command is used for updating MTC as well.
+
 ```
 cargo install --git https://github.com/Windore/mtc.git
 ```
 
 ## Usage
 
-There are three types of items related to time management: todos, tasks, and events. None of these types handles clock times and they only deal with dates. Easy way to include times is just to specify them in the body of an any type.
+There are three types of items related to time management: todos, tasks, and events. None of these types handles clock
+times, and they only deal with dates. Easy way to include times is just to specify them in the body of an any type.
+Items are sorted by an item's body so 24-hour clock times at the start of an item work well. If you need to, you can
+start the time with "AM" or "PM" and the order will be correct as well.
 
 ### Todos
 
-Todos are quite self-explanatory. They are used for simple one time tasks that don't necessarily have to be done at a specific time. You can however specify a weekday for a todo, but nothing more specific than that.
+Todos are quite self-explanatory. They are used for simple one time tasks that don't necessarily have to be done at a
+specific time. You can however specify a weekday for a todo, but nothing more specific than that.
 
 ### Tasks
 
-Tasks are something that one expects to do every week on a specific weekday. They have a duration in minutes and you can use `mtc do` to have a timer for that duration. Tasks can also exist without a weekday specified.
+Tasks are something that you expect to do every week on a specific weekday. They have a duration in minutes, and you can
+use `mtc do` to have a timer for that duration. Tasks can also exist without a weekday specified. Then the task is for
+every day.
 
 ### Events
 
-Events are like todos, but they have a specific date when they occur. Events that are more than three days old are removed automatically during sync.
+Events are like todos, but they have a specific date when they occur. Events that are more than three days old are
+removed automatically during sync.
 
 ### Commands
 
@@ -44,7 +58,8 @@ Show only a specific type:
 mtc show <type>
 ```
 
-Show everything for a weekday. (Note: If today is an tuesday and the specified weekday is monday this command will show next weeks monday)
+Show everything for a weekday. (Note: If today is a tuesday and the specified weekday is monday this command will show
+next weeks monday)
 
 ```
 mtc show <weekday>
@@ -78,7 +93,8 @@ mtc add <type>
 
 #### Remove
 
-Remove an item. The app will ask for an id. Each item of a type has an unique numerical id. You can get the id with the `show` command. Note that the id may change for an item when syncing.
+Remove an item. The app will ask for an id. Each item of a type has a unique numerical id. You can get the id with
+the `show` command. Note that the id may change for an item when syncing.
 
 ```
 mtc remove <type> <id> 
@@ -94,7 +110,8 @@ mtc do <task id>
 
 #### Sync
 
-Using sync requires a little bit setting up to do. The app expects a config file located in the mtc directory in the users data directory. For example in linux this config file is `~/.local/share/mtc/sync-conf.json`. Example of a config file:
+Using sync requires a bit setting up to do. The app expects a config file located in the mtc directory in the user's
+data directory. For example in linux this config file is `~/.local/share/mtc/sync-conf.json`. Example of a config file:
 
 ```
 {
@@ -104,7 +121,8 @@ Using sync requires a little bit setting up to do. The app expects a config file
 }
 ```
 
-Note that the server path needs to exist as the app doesn't create it automatically. Also sync currenly only supports password based authentication (as that is currenly what I need).
+Note that the server path needs to exist as the app doesn't create it automatically. Also sync currently only supports
+password based authentication (as that is currently what I need).
 
 First time syncing with a server requires using the following command.
 
@@ -112,7 +130,9 @@ First time syncing with a server requires using the following command.
 mtc sync overwrite
 ```
 
-This will overwrite the saved items on the server. Note: that if you have synced to a same server from any client, overwrite is not needed to sync with a new client. Only new servers require using overwrite. Overwrite is used because it automatically creates the initial server files instead of trying to look for them and failing.
+This will overwrite the saved items on the server. Note: that if you have synced to a same server from any client,
+overwrite is not needed to sync with a new client. Only new servers require using overwrite. Overwrite is used because
+it automatically creates the initial server files instead of trying to look for them and failing.
 
 After the setup sync happens with the following command.
 
@@ -126,7 +146,8 @@ If for some reason the app is used only locally, the following command needs to 
 mtc sync self
 ```
 
-This is because internally the app doesn't actually remove items with the remove command. Instead it only marks them as removed and then sync finally removes them.
+This is because internally the app doesn't actually remove items with the remove command. Instead, it only marks them as
+removed and then sync finally removes them.
 
 #### Help
 
@@ -137,4 +158,5 @@ mtc help
 ```
 
 ## License
+
 This project is licensed under the [MIT license](LICENSE.md).
