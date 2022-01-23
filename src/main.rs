@@ -604,15 +604,23 @@ mod commands {
         }
 
         fn read_config() -> Result<Config, String> {
-            // TODO this should return a proper user facing error message
-            // From main we know that this should exist so unwrap is ok here.
-            // There may be some cases where this doesn't work but those are likely very rare...?
-            let path = dirs::data_dir().unwrap().join("mtc/sync-conf.json");
+            if let Some(cnf) = dirs::config_dir() {
+                let dir = cnf.join("mtc/");
+                if let Err(e) = fs::create_dir_all(&dir) {
+                    return Err(format!("Failed to create config directory.\nReason: {}", e));
+                }
+                let path = dir.join("sync.json");
+                if !path.exists() {
+                    return Err("No config file found. Please create one.".to_string());
+                }
 
-            let file = File::open(path).map_err(|e| e.to_string())?;
-            let reader = BufReader::new(file);
+                let file = File::open(path).map_err(|e| format!("Failed to open config file.\nReason: {}", e))?;
+                let reader = BufReader::new(file);
 
-            serde_json::from_reader(reader).map_err(|e| e.to_string())
+                serde_json::from_reader(reader).map_err(|e| format!("Failed to parse config file.\nReason: {}", e))
+            } else {
+                Err("Cannot locate a config directory. Your os may not be supported.".to_string())
+            }
         }
     }
 }
@@ -640,7 +648,7 @@ fn main() {
             eprintln!("{}", msg);
         }
     } else {
-        eprintln!("Non supported OS");
+        eprintln!("Cannot locate a data directory. Your os may not be supported.");
         return;
     }
 }

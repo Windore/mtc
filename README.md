@@ -44,7 +44,8 @@ removed automatically during sync.
 
 ### Commands
 
-Weekdays can be shortened to three initial letters. If a weekday is wanted to be left unspecified, don't supply a weekday argument.
+Weekdays can be shortened to three initial letters. If a weekday is wanted to be left unspecified, don't supply a
+weekday argument.
 
 #### Show
 
@@ -100,16 +101,19 @@ mtc show month
 #### Add
 
 Add a new todo with a given body. A weekday may also be supplied.
+
 ```
 mtc add todo <body> [weekday]
 ```
 
 Add a new task with a given body and a duration. A weekday may also be supplied.
+
 ```
 mtc add task <body> <duration> [weekday]
 ```
 
 Add a new event with a body and a date. Date is given in `year-month-day` format.
+
 ```
 mtc add event <body> <date>
 ```
@@ -132,6 +136,7 @@ mtc set <type> <id> <property> <value>
 ```
 
 Possible properties for...
+
 - Todos: body, weekday
 - Tasks: body, duration, weekday
 - Events: body, date
@@ -153,7 +158,10 @@ mtc do <task id>
 #### Sync
 
 Using sync requires a bit setting up to do. The app expects a config file located in the mtc directory in the user's
-data directory. For example in linux this config file is `~/.local/share/mtc/sync-conf.json`. Example of a config file:
+config directory. For example for linux this config file is `~/.config/mtc/sync.json`. The app will not create a config
+file on its own. Example of a config file:
+
+`sync.json`:
 
 ```
 {
