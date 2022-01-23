@@ -473,14 +473,14 @@ mod commands {
 
         fn show_all_date(items: &Items, date: NaiveDate) {
             println!("{} {}:", date.weekday(), date);
+            println!("\tEvents: ");
+            show_list_date(&items.events, date);
+
             println!("\tTodos: ");
             show_list_date(&items.todos, date);
 
             println!("\tTasks: ");
             show_list_date(&items.tasks, date);
-
-            println!("\tEvents: ");
-            show_list_date(&items.events, date);
         }
 
         fn show_list_date<T: MtcItem + Clone + Ord + Display>(list: &MtcList<T>, date: NaiveDate) {
