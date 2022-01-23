@@ -44,6 +44,8 @@ removed automatically during sync.
 
 ### Commands
 
+Weekdays can be shortened to three initial letters. If a weekday is wanted to be left unspecified, don't supply a weekday argument.
+
 #### Show
 
 Show all todos, tasks, and events:
@@ -107,6 +109,25 @@ the `show` command. Note that the id may change for an item when syncing.
 
 ```
 mtc remove <type> <id> 
+```
+
+#### Set
+
+Set a property of an item.
+
+```
+mtc set <type> <id> <property> <value>
+```
+
+Possible properties for...
+- Todos: body, weekday
+- Tasks: body, duration, weekday
+- Events: body, date
+
+To set a weekday to all weekdays use:
+
+```
+mtc set <type> <id> weekday
 ```
 
 #### Do
