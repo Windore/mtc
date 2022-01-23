@@ -1,5 +1,3 @@
-//! # MTC Lib
-//!
 //! This API provides the base functionality for mtc. It can be also used for creating apps that
 //! can sync with the mtc CLI app or serve as an additional interface.
 

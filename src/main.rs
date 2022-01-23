@@ -1,5 +1,4 @@
-use mtc::*;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use std::{fs, fs::File};
 use std::env;
 use std::fmt::Display;
 use std::io::{self, BufReader, BufWriter, Write};
@@ -7,7 +6,10 @@ use std::path::Path;
 use std::str::FromStr;
 use std::thread;
 use std::time::{Duration, Instant};
-use std::{fs, fs::File};
+
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+
+use mtc::*;
 
 pub struct Items {
     pub todos: MtcList<Todo>,
@@ -16,8 +18,9 @@ pub struct Items {
 }
 
 mod commands {
-    use super::*;
     use chrono::prelude::*;
+
+    use super::*;
 
     pub fn handle_command(mut items: Items) -> Items {
         // There probably is a better way to do this. However the overhead is insignificant so it doesn't matter that much.
@@ -38,7 +41,7 @@ mod commands {
         };
 
         if let Err(e) = result {
-            eprintln!("{}",e);
+            eprintln!("{}", e);
             println!("Use: 'mtc help' for help.");
         }
 
@@ -53,8 +56,8 @@ mod commands {
         println!("Commands:");
         println!("\tshow [<type> | weekday | today | month]");
         println!("\tShows saved items.\n");
-        println!("\tadd <type> <body> <weekday | date>");
-        println!("\tAdds a item of a given type. Todos and task accept a weekday, events a date. Weekday can be optionally left out.\n");
+        println!("\tadd <type> <body> (duration) ([weekday] | <date>)");
+        println!("\tAdds a item of a given type. Todos and tasks accept a weekday, events a date. Weekday can be optionally left out. Duration is only used for tasks.\n");
         println!("\tremove <type> <id>");
         println!("\tRemoves a item of a given type.\n");
         println!("\tdo <task id>");
@@ -67,8 +70,8 @@ mod commands {
     }
 
     fn do_task<'a, T>(items: &Items, args: T) -> Result<(), String>
-    where
-        T: Iterator<Item = &'a str>,
+        where
+            T: Iterator<Item=&'a str>,
     {
         // This will be soon changed completely so it is not yet refactored to the new result based
         // error handling.
@@ -103,22 +106,22 @@ mod commands {
     }
 
     fn remove<'a, T>(items: &mut Items, mut args: T) -> Result<(), String>
-    where
-        T: Iterator<Item = &'a str>,
+        where
+            T: Iterator<Item=&'a str>,
     {
         match args.next() {
             Some("todo") => {
                 let id = read_id(args)?;
                 items.todos.mark_removed(id)?;
-            },
+            }
             Some("task") => {
                 let id = read_id(args)?;
                 items.tasks.mark_removed(id)?;
-            },
+            }
             Some("event") => {
                 let id = read_id(args)?;
                 items.events.mark_removed(id)?;
-            },
+            }
             Some(typ) => return Err(format!("Unknown type: '{}'", typ)),
             None => return Err("No type specified".to_string()),
         }
@@ -126,8 +129,8 @@ mod commands {
     }
 
     fn read_id<'a, T>(mut args: T) -> Result<usize, String>
-    where
-        T: Iterator<Item = &'a str>,
+        where
+            T: Iterator<Item=&'a str>,
     {
         if let Some(s) = args.next() {
             return usize::from_str(s).map_err(|_| "Invalid input. Input a valid ID.".to_string());
@@ -139,113 +142,90 @@ mod commands {
         use super::*;
 
         pub fn add<'a, T>(items: &mut Items, mut args: T) -> Result<(), String>
-        where
-            T: Iterator<Item = &'a str>,
+            where
+                T: Iterator<Item=&'a str>,
         {
             match args.next() {
-                Some("todo") => add_todo(items),
-                Some("task") => add_task(items),
-                Some("event") => add_event(items),
+                Some("todo") => add_todo(items, args)?,
+                Some("task") => add_task(items, args)?,
+                Some("event") => add_event(items, args)?,
                 Some(typ) => return Err(format!("Unknown type: '{}'", typ)),
                 None => return Err("No type specified".to_string()),
             }
             Ok(())
         }
 
-        fn add_todo(items: &mut Items) {
-            println!("New todo: ");
-            let body = read_body();
-            let weekday = read_weekday();
+        fn add_todo<'a, T>(items: &mut Items, mut args: T) -> Result<(), String>
+            where
+                T: Iterator<Item=&'a str>,
+        {
+            let body = read_body(args.next())?;
+            let weekday = read_weekday(args.next())?;
             items.todos.add(Todo::new(body, weekday));
+            Ok(())
         }
 
-        fn add_task(items: &mut Items) {
-            println!("New task: ");
-            let body = read_body();
-            let duration = read_duration();
-            let weekday = read_weekday();
+        fn add_task<'a, T>(items: &mut Items, mut args: T) -> Result<(), String>
+            where
+                T: Iterator<Item=&'a str>,
+        {
+            let body = read_body(args.next())?;
+            let duration = read_duration(args.next())?;
+            let weekday = read_weekday(args.next())?;
             items.tasks.add(Task::new(body, duration, weekday));
+            Ok(())
         }
 
-        fn add_event(items: &mut Items) {
-            println!("New event: ");
-            let body = read_body();
-            let date = read_date();
+        fn add_event<'a, T>(items: &mut Items, mut args: T) -> Result<(), String>
+            where
+                T: Iterator<Item=&'a str>,
+        {
+            let body = read_body(args.next())?;
+            let date = read_date(args.next())?;
             items.events.add(Event::new(body, date));
+            Ok(())
         }
 
-        fn read_weekday() -> Option<Weekday> {
-            loop {
-                print!("Input a weekday (empty for none): ");
-                io::stdout().flush().expect("Failed to flush stdout.");
-                let mut inp = String::new();
-                io::stdin()
-                    .read_line(&mut inp)
-                    .expect("Failed to read stdin.");
-                inp = inp.replace('\n', "");
-
-                if inp.trim().len() == 0 {
-                    return None;
+        fn read_weekday(next: Option<&str>) -> Result<Option<Weekday>, String>
+        {
+            if let Some(inp) = next {
+                match Weekday::from_str(inp) {
+                    Ok(day) => Ok(Some(day)),
+                    Err(_) => Err(format!("Cannot parse '{}' to a weekday.", inp)),
                 }
-
-                match Weekday::from_str(&inp) {
-                    Ok(day) => return Some(day),
-                    Err(_) => {
-                        eprintln!("Cannot parse '{}' to a weekday.", &inp);
-                    }
-                }
+            } else {
+                Ok(None)
             }
         }
 
-        fn read_duration() -> u32 {
-            loop {
-                print!("Input a duration in minutes: ");
-                io::stdout().flush().expect("Failed to flush stdout.");
-                let mut inp = String::new();
-                io::stdin()
-                    .read_line(&mut inp)
-                    .expect("Failed to read stdin.");
-                inp = inp.replace('\n', "");
-
-                match u32::from_str(&inp) {
-                    Ok(n) => return n,
-                    Err(_) => {
-                        eprintln!("Cannot parse '{}' to a number.", &inp);
-                    }
+        fn read_duration(next: Option<&str>) -> Result<u32, String>
+        {
+            if let Some(inp) = next {
+                match u32::from_str(inp) {
+                    Ok(dur) => Ok(dur),
+                    Err(_) => Err(format!("Cannot parse '{}' to a number.", inp)),
                 }
+            } else {
+                Err("Missing task duration argument.".to_string())
             }
         }
 
-        fn read_body() -> String {
-            loop {
-                print!("Input a body: ");
-                io::stdout().flush().expect("Failed to flush stdout.");
-                let mut inp = String::new();
-                io::stdin()
-                    .read_line(&mut inp)
-                    .expect("Failed to read stdin.");
-                inp = inp.replace('\n', "");
-
-                return inp;
+        fn read_body(next: Option<&str>) -> Result<String, String> {
+            if let Some(inp) = next {
+                Ok(inp.to_string())
+            } else {
+                Err("Missing item body argument.".to_string())
             }
         }
 
-        fn read_date() -> NaiveDate {
-            loop {
-                print!("Input a date (yyyy-mm-dd): ");
-                io::stdout().flush().expect("Failed to flush stdout.");
-                let mut inp = String::new();
-                io::stdin()
-                    .read_line(&mut inp)
-                    .expect("Failed to read stdin.");
-                inp = inp.replace('\n', "");
-
-                match NaiveDate::from_str(&inp) {
-                    Ok(date) => return date,
-                    Err(_) => {
-                        eprintln!("Cannot parse '{}' to a date.", &inp);
-                    }
+        fn read_date(next: Option<&str>) -> Result<NaiveDate, String> {
+            if let Some(inp) = next {
+                match NaiveDate::from_str(inp) {
+                    Ok(date) => Ok(date),
+                    Err(_) => Err(format!("Cannot parse '{}' to a date.", inp))
                 }
+            } else {
+                Err("Missing event date argument.".to_string())
             }
         }
     }
@@ -264,8 +244,8 @@ mod commands {
         ];
 
         pub fn show<'a, T>(items: &Items, mut args: T) -> Result<(), String>
-        where
-            T: Iterator<Item = &'a str>,
+            where
+                T: Iterator<Item=&'a str>,
         {
             match args.next() {
                 Some("todos") => show_all_todos(items),
@@ -391,10 +371,12 @@ mod commands {
     }
 
     mod sync {
-        use super::*;
-        use ssh2::Session;
         use std::io::Error;
         use std::net::TcpStream;
+
+        use ssh2::Session;
+
+        use super::*;
 
         #[derive(Serialize, Deserialize)]
         struct Config {
@@ -404,8 +386,8 @@ mod commands {
         }
 
         pub fn sync<'a, T>(items: &mut Items, mut args: T) -> Result<(), String>
-        where
-            T: Iterator<Item = &'a str>,
+            where
+                T: Iterator<Item=&'a str>,
         {
             // Only events can expire
             items.events.remove_expired();
