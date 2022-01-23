@@ -79,6 +79,12 @@ Show everything for tomorrow.
 mtc show tomorrow
 ```
 
+Show a quick overview of today and next three days. Doesn't show tasks. 'overview' can be shortened to 'ov'.
+
+```
+mtc show overview
+```
+
 Show everything for a week from this day.
 
 ```

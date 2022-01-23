@@ -58,7 +58,7 @@ mod commands {
         println!("Read the README.md for more information");
         println!();
         println!("Commands:");
-        println!("\tshow [<type> | <weekday> | today | tomorrow | month]");
+        println!("\tshow [<type> | <weekday> | today | tomorrow | overview | month]");
         println!("\tShows saved items.\n");
         println!("\tadd <type> <body> (duration) ([weekday] | <date>)");
         println!("\tAdds a item of a given type. Todos and tasks accept a weekday, events a date. Weekday can be optionally left out. Duration is only used for tasks.\n");
@@ -382,6 +382,8 @@ mod commands {
                 Some("events") => show_all_events(items),
                 Some("today") => show_today(items),
                 Some("tomorrow") => show_tomorrow(items),
+                Some("ov") => show_overview(items),
+                Some("overview") => show_overview(items),
                 Some("week") => show_week(items),
                 Some("month") => show_month(items),
                 Some(weekday) => {
@@ -423,6 +425,14 @@ mod commands {
         fn show_tomorrow(items: &Items) {
             let day = Local::today().succ();
             show_all_date(items, day.naive_local());
+        }
+
+        fn show_overview(items: &Items) {
+            let mut day = Local::today().naive_local();
+            for _ in 0..4 {
+                show_important_date(items, day);
+                day = day.succ();
+            }
         }
 
         fn show_week(items: &Items) {
@@ -481,6 +491,15 @@ mod commands {
 
             println!("\tTasks: ");
             show_list_date(&items.tasks, date);
+        }
+
+        fn show_important_date(items: &Items, date: NaiveDate) {
+            println!("{} {}:", date.weekday(), date);
+            println!("\tEvents: ");
+            show_list_date(&items.events, date);
+
+            println!("\tTodos: ");
+            show_list_date(&items.todos, date);
         }
 
         fn show_list_date<T: MtcItem + Clone + Ord + Display>(list: &MtcList<T>, date: NaiveDate) {
