@@ -26,27 +26,26 @@ mod commands {
 
         args.next();
 
-        match args.next() {
+        let result: Result<(), String> = match args.next() {
             Some("show") => show_cmd::show(&items, args),
             Some("help") => help(),
             Some("add") => add_cmd::add(&mut items, args),
             Some("remove") => remove(&mut items, args),
             Some("do") => do_task(&items, args),
             Some("sync") => sync::sync(&mut items, args),
-            None => {
-                eprintln!("Not enough arguments.");
-                tip();
-            }
-            _ => {
-                eprintln!("Unknown command.");
-                tip();
-            }
+            None => Err("Not enough arguments.".to_string()),
+            _ => Err("Unknown command".to_string()),
+        };
+
+        if let Err(e) = result {
+            eprintln!("{}",e);
+            println!("Use: 'mtc help' for help.");
         }
 
         items
     }
 
-    fn help() {
+    fn help() -> Result<(), String> {
         println!("MTC - My Time Contract - a CLI time management app.");
         println!("usage: mtc <command> [<args>]");
         println!("Read the README.md for more information");
@@ -54,8 +53,8 @@ mod commands {
         println!("Commands:");
         println!("\tshow [<type> | weekday | today | month]");
         println!("\tShows saved items.\n");
-        println!("\tadd <type>");
-        println!("\tAdds a item of a given type.\n");
+        println!("\tadd <type> <body> <weekday | date>");
+        println!("\tAdds a item of a given type. Todos and task accept a weekday, events a date. Weekday can be optionally left out.\n");
         println!("\tremove <type> <id>");
         println!("\tRemoves a item of a given type.\n");
         println!("\tdo <task id>");
@@ -64,22 +63,16 @@ mod commands {
         println!("\tSyncs all items with a server specified by a config. Using 'self' or 'overwrite' isn't usually necessary nor recommended.\n");
         println!("\thelp");
         println!("\tShows this help output.");
+        Ok(())
     }
 
-    fn tip() {
-        println!("Use: 'mtc help' for help.");
-    }
-
-    fn do_task<'a, T>(items: &Items, args: T)
+    fn do_task<'a, T>(items: &Items, args: T) -> Result<(), String>
     where
         T: Iterator<Item = &'a str>,
     {
-        let id = read_id(args);
-        if id.is_err() {
-            eprintln!("{}", id.err().unwrap());
-            return;
-        }
-        let id = id.unwrap();
+        // This will be soon changed completely so it is not yet refactored to the new result based
+        // error handling.
+        let id = read_id(args)?;
 
         if let Some(task) = items.tasks.items().iter().find(|item| item.id() == id) {
             let mut millis_left = task.duration() as u128 * 60_000;
@@ -100,77 +93,52 @@ mod commands {
                     // Print here this one last time since the timer could otherwise stop at 0 h 0 min 1 s for example
                     // which is quite annoying.
                     println!("\rTime left: 0 h 0 min 0 s");
-                    return;
+                    return Ok(());
                 }
             }
         } else {
             eprintln!("No task with the given ID found.");
         }
+        Ok(())
     }
 
-    fn remove<'a, T>(items: &mut Items, mut args: T)
+    fn remove<'a, T>(items: &mut Items, mut args: T) -> Result<(), String>
     where
         T: Iterator<Item = &'a str>,
     {
         match args.next() {
             Some("todo") => {
-                let id = read_id(args);
-                if id.is_err() {
-                    eprintln!("{}", id.err().unwrap());
-                    return;
-                }
-                let id = id.unwrap();
-                if let Err(e) = items.todos.mark_removed(id) {
-                    eprintln!("{}", e);
-                }
+                let id = read_id(args)?;
+                items.todos.mark_removed(id)?;
             },
             Some("task") => {
-                let id = read_id(args);
-                if id.is_err() {
-                    eprintln!("{}", id.err().unwrap());
-                    return;
-                }
-                let id = id.unwrap();
-                if let Err(e) = items.tasks.mark_removed(id) {
-                    eprintln!("{}", e);
-                }
+                let id = read_id(args)?;
+                items.tasks.mark_removed(id)?;
             },
             Some("event") => {
-                let id = read_id(args);
-                if id.is_err() {
-                    eprintln!("{}", id.err().unwrap());
-                    return;
-                }
-                let id = id.unwrap();
-                if let Err(e) = items.events.mark_removed(id) {
-                    eprintln!("{}", e);
-                }
+                let id = read_id(args)?;
+                items.events.mark_removed(id)?;
             },
-            Some(typ) => {
-                eprintln!("Unknown type: '{}'", typ);
-                tip();
-            }
-            None => {
-                eprintln!("No type specified.");
-                tip();
-            }
+            Some(typ) => return Err(format!("Unknown type: '{}'", typ)),
+            None => return Err("No type specified".to_string()),
         }
+        Ok(())
     }
 
-    fn read_id<'a, T>(mut args: T) -> Result<usize, &'static str>
+    fn read_id<'a, T>(mut args: T) -> Result<usize, String>
     where
         T: Iterator<Item = &'a str>,
     {
         if let Some(s) = args.next() {
-            return usize::from_str(s).map_err(|_| "Invalid input. Input a valid ID.");
+            return usize::from_str(s).map_err(|_| "Invalid input. Input a valid ID.".to_string());
         }
-        Err("No ID specified.")
+        Err("No ID specified.".to_string())
     }
 
     mod add_cmd {
         use super::*;
 
-        pub fn add<'a, T>(items: &mut Items, mut args: T)
+        pub fn add<'a, T>(items: &mut Items, mut args: T) -> Result<(), String>
         where
             T: Iterator<Item = &'a str>,
         {
@@ -178,15 +146,10 @@ mod commands {
                 Some("todo") => add_todo(items),
                 Some("task") => add_task(items),
                 Some("event") => add_event(items),
-                Some(typ) => {
-                    eprintln!("Unknown type: '{}'", typ);
-                    tip();
-                }
-                None => {
-                    eprintln!("No type specified.");
-                    tip();
-                }
+                Some(typ) => return Err(format!("Unknown type: '{}'", typ)),
+                None => return Err("No type specified".to_string()),
             }
+            Ok(())
         }
 
         fn add_todo(items: &mut Items) {
@@ -300,7 +263,7 @@ mod commands {
             Weekday::Sun,
         ];
 
-        pub fn show<'a, T>(items: &Items, mut args: T)
+        pub fn show<'a, T>(items: &Items, mut args: T) -> Result<(), String>
         where
             T: Iterator<Item = &'a str>,
         {
@@ -315,12 +278,12 @@ mod commands {
                     if let Ok(wd) = weekday.parse::<Weekday>() {
                         show_weekday(items, wd);
                     } else {
-                        eprintln!("Cannot parse '{}' to a weekday.", weekday);
-                        tip();
+                        return Err(format!("Cannot parse '{}' to a weekday.", weekday));
                     }
                 }
                 None => show_all(items),
             }
+            Ok(())
         }
 
         fn show_all(items: &Items) {
@@ -440,7 +403,7 @@ mod commands {
             server_path: String,
         }
 
-        pub fn sync<'a, T>(items: &mut Items, mut args: T)
+        pub fn sync<'a, T>(items: &mut Items, mut args: T) -> Result<(), String>
         where
             T: Iterator<Item = &'a str>,
         {
@@ -455,26 +418,19 @@ mod commands {
                     items.todos.sync_self();
                     items.tasks.sync_self();
                     items.events.sync_self();
-                    return;
+                    return Ok(());
                 }
                 _ => {
-                    eprintln!("Unknown command.");
-                    tip();
-                    return;
+                    return Err("Unknown command.".to_string());
                 }
             }
 
-            match read_config() {
-                Ok(conf) => {
-                    if let Err(e) = connect(items, &conf, overwrite) {
-                        eprintln!("Failed to sync: {}", e);
-                    }
-                }
-                Err(e) => {
-                    eprintln!("Reading sync config failed.");
-                    eprintln!("{}", e);
-                }
+            let config = read_config()?;
+            if let Err(e) = connect(items, &config, overwrite) {
+                return Err(format!("Sync failed.\nReason: {}", e));
             }
+
+            Ok(())
         }
 
         fn connect(items: &mut Items, conf: &Config, overwrite: bool) -> Result<(), Error> {
@@ -512,6 +468,7 @@ mod commands {
         }
 
         fn read_config() -> Result<Config, String> {
+            // TODO this should return a proper user facing error message
             // From main we know that this should exist so unwrap is ok here.
             // There may be some cases where this doesn't work but those are likely very rare...?
             let path = dirs::data_dir().unwrap().join("mtc/sync-conf.json");
