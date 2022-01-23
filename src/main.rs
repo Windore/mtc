@@ -58,7 +58,7 @@ mod commands {
         println!("Read the README.md for more information");
         println!();
         println!("Commands:");
-        println!("\tshow [<type> | weekday | today | month]");
+        println!("\tshow [<type> | <weekday> | today | tomorrow | month]");
         println!("\tShows saved items.\n");
         println!("\tadd <type> <body> (duration) ([weekday] | <date>)");
         println!("\tAdds a item of a given type. Todos and tasks accept a weekday, events a date. Weekday can be optionally left out. Duration is only used for tasks.\n");
@@ -381,6 +381,7 @@ mod commands {
                 Some("tasks") => show_all_tasks(items),
                 Some("events") => show_all_events(items),
                 Some("today") => show_today(items),
+                Some("tomorrow") => show_tomorrow(items),
                 Some("week") => show_week(items),
                 Some("month") => show_month(items),
                 Some(weekday) => {
@@ -416,6 +417,11 @@ mod commands {
 
         fn show_today(items: &Items) {
             let day = Local::today();
+            show_all_date(items, day.naive_local());
+        }
+
+        fn show_tomorrow(items: &Items) {
+            let day = Local::today().succ();
             show_all_date(items, day.naive_local());
         }
 

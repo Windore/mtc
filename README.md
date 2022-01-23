@@ -73,6 +73,12 @@ Show everything for today.
 mtc show today
 ```
 
+Show everything for tomorrow.
+
+```
+mtc show tomorrow
+```
+
 Show everything for a week from this day.
 
 ```
