@@ -403,6 +403,7 @@ mod commands {
                 println!("{}", wd);
                 println!("\tTodos: ");
                 show_list_weekday(&items.todos, *wd);
+
                 println!("\tTasks: ");
                 show_list_weekday(&items.tasks, *wd);
             }
@@ -430,7 +431,7 @@ mod commands {
         fn show_overview(items: &Items) {
             let mut day = Local::today().naive_local();
             for _ in 0..4 {
-                show_important_date(items, day);
+                show_all_date(items, day);
                 day = day.succ();
             }
         }
@@ -482,18 +483,6 @@ mod commands {
         }
 
         fn show_all_date(items: &Items, date: NaiveDate) {
-            println!("{} {}:", date.weekday(), date);
-            println!("\tEvents: ");
-            show_list_date(&items.events, date);
-
-            println!("\tTodos: ");
-            show_list_date(&items.todos, date);
-
-            println!("\tTasks: ");
-            show_list_date(&items.tasks, date);
-        }
-
-        fn show_important_date(items: &Items, date: NaiveDate) {
             println!("{} {}:", date.weekday(), date);
             println!("\tEvents: ");
             show_list_date(&items.events, date);
