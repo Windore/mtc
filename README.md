@@ -49,50 +49,50 @@ weekday argument.
 
 #### Show
 
-Show all todos, tasks, and events:
+Show all todos, tasks, and events.
 
 ```
 mtc show
 ```
 
-Show only a specific type:
+Show only a specific type. This is the only way to show tasks.
 
 ```
 mtc show <type>
 ```
 
-Show everything for a weekday. (Note: If today is a tuesday and the specified weekday is monday this command will show
+Show todos and events for a weekday. (Note: If today is a tuesday and the specified weekday is monday this command will show
 next weeks monday)
 
 ```
 mtc show <weekday>
 ```
 
-Show everything for today.
+Show todos and events for today.
 
 ```
 mtc show today
 ```
 
-Show everything for tomorrow.
+Show todos and events for tomorrow.
 
 ```
 mtc show tomorrow
 ```
 
-Show a quick overview of today and next three days. Doesn't show tasks. 'overview' can be shortened to 'ov'.
+Show a quick overview of today and next three days. 'overview' can be shortened to 'ov'.
 
 ```
 mtc show overview
 ```
 
-Show everything for a week from this day.
+Show todos and events for a week from this day.
 
 ```
 mtc show week
 ```
 
-Show everything for a 30-day period from this day.
+Show todos and events for a 30-day period from this day.
 
 ```
 mtc show month
