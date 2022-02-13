@@ -33,8 +33,8 @@ specific time. You can however specify a weekday for a todo, but nothing more sp
 
 ### Tasks
 
-Tasks are something that you expect to do every week on a specific weekday. They have a duration in minutes, and you can
-use `mtc do` to have a timer for that duration. Tasks can also exist without a weekday specified. Then the task is for
+Tasks are something that you expect to do every week on specified weekdays. They have a duration in minutes, and you can
+use `mtc do` to have a timer for that duration. Tasks can have one or more specified weekdays. Tasks can also exist without a weekday specified. Then the task is for
 every day.
 
 ### Events
@@ -106,7 +106,7 @@ Add a new todo with a given body. A weekday may also be supplied.
 mtc add todo <body> [weekday]
 ```
 
-Add a new task with a given body and a duration. A weekday may also be supplied.
+Add a new task with a given body and a duration. A weekday or multiple may also be supplied.
 
 ```
 mtc add task <body> <duration> [weekday]
@@ -141,6 +141,12 @@ Possible properties for...
 - Tasks: body, duration, weekday
 - Events: body, date
 
+For tasks, you can specify more than just a one weekday. For example:
+
+```
+mtc set task 0 weekday mon wed fri
+```
+
 To set a weekday to all weekdays use:
 
 ```
@@ -174,7 +180,7 @@ file on its own. Example of a config file:
 Note that the server path needs to exist as the app doesn't create it automatically. Also sync currently only supports
 password based authentication (as that is currently what I need).
 
-First time syncing with a server requires using the following command.
+First time syncing with a server requires using the following command. It is also required when mtc has had a major update.
 
 ```
 mtc sync overwrite

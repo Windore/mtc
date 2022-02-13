@@ -169,8 +169,18 @@ mod commands {
         {
             let body = read_body(args.next())?;
             let duration = read_duration(args.next())?;
-            let weekday = read_weekday(args.next())?;
-            items.tasks.add(Task::new(body, duration, weekday));
+            let mut weekdays = [false, false, false, false, false, false, false];
+
+            for day_str in args {
+                let day = read_weekday(Some(day_str))?;
+                if let Some(weekday) = day {
+                    weekdays[(weekday.number_from_monday() - 1) as usize] = true;
+                }
+            }
+
+            let mut task = Task::new(body, duration, None);
+            task.set_weekdays(weekdays);
+            items.tasks.add(task);
             Ok(())
         }
 
@@ -248,7 +258,7 @@ mod commands {
 
             // This is not optimal but the slight performance overhead is not significant.
             let mut body = old.body().clone();
-            let mut weekday = old.weekday();
+            let mut weekdays = old.weekdays();
             let mut duration = old.duration();
 
             match args.next() {
@@ -259,13 +269,21 @@ mod commands {
                     duration = read_duration(args.next())?;
                 }
                 Some("weekday") => {
-                    weekday = read_weekday(args.next())?;
+                    weekdays = [false, false, false, false, false, false, false];
+
+                    for day_str in args {
+                        let day = read_weekday(Some(day_str))?;
+                        if let Some(weekday) = day {
+                            weekdays[(weekday.number_from_monday() - 1) as usize] = true;
+                        }
+                    }
                 }
                 Some(_) => return Err("Unknown property.".to_string()),
                 None => return Err("Missing property argument.".to_string())
             };
 
-            let new = Task::new(body, duration, weekday);
+            let mut new = Task::new(body, duration, None);
+            new.set_weekdays(weekdays);
             items.tasks.mark_removed(id).unwrap();
             items.tasks.add(new);
             Ok(())
