@@ -15,7 +15,7 @@ pub struct Todo {
 /// A repeating task with a duration in minutes for a optionally given weekday.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Task {
-    weekday: Option<Weekday>,
+    weekdays: [bool; 7],
     body: String,
     duration: u32,
     state: ItemState,
@@ -61,8 +61,14 @@ impl Todo {
 impl Task {
     /// Creates a new `Task` with a given body, duration in minutes and optionally a weekday.
     pub fn new(body: String, duration: u32, weekday: Option<Weekday>) -> Task {
+        let mut weekdays: [bool; 7] = [false, false, false, false, false, false, false];
+
+        if let Some(day) = weekday {
+            weekdays[(day.number_from_monday() - 1) as usize] = true;
+        }
+
         Task {
-            weekday,
+            weekdays,
             body,
             duration,
             state: ItemState::Neutral,
@@ -75,19 +81,39 @@ impl Task {
         &self.body
     }
 
-    /// Returns the optionally specified weekday of the `Task`.
-    pub fn weekday(&self) -> Option<Weekday> {
-        self.weekday
-    }
-
     /// Returns the duration of the `Task`.
     pub fn duration(&self) -> u32 {
         self.duration
     }
 
-    /// Sets the optional weekday of the `Task`.
-    pub fn set_weekday(&mut self, new_weekday: Option<Weekday>) {
-        self.weekday = new_weekday;
+    /// Returns a array defining all the weekdays this task is for. 0th element indicates monday.
+    /// A value of `true` indicates that a task is for the day.
+    pub fn weekdays(&self) -> [bool; 7] {
+        self.weekdays.clone()
+    }
+
+    /// Sets the array defining all the weekdays this task is for. 0th element indicates monday.
+    /// A value of `true` indicates that a task is for the day.
+    pub fn set_weekdays(&mut self, weekdays: [bool; 7]) {
+        self.weekdays = weekdays;
+    }
+
+    /// Returns true if the `Task` is for a weekday.
+    pub fn is_for_weekday(&self, weekday: Weekday) -> bool {
+        let mut all_false = true;
+        for b in self.weekdays {
+            if b {
+                all_false = false;
+            }
+        }
+
+        // If all days are false then every day is for the task.
+        self.weekdays[(weekday.number_from_monday() - 1) as usize] || all_false
+    }
+
+    /// Set if a weekday is for the `Task`. `true` indicates that the task is for the weekday.
+    pub fn set_for_weekday(&mut self, weekday: Weekday, is_for: bool) {
+        self.weekdays[(weekday.number_from_monday() - 1) as usize] = is_for;
     }
 }
 
@@ -191,10 +217,7 @@ impl MtcItem for Task {
     /// assert!(!item.for_date(NaiveDate::from_ymd(2021, 12, 5)));
     /// ```
     fn for_date(&self, date: NaiveDate) -> bool {
-        match self.weekday {
-            Some(day) => day == date.weekday(),
-            None => true,
-        }
+        self.is_for_weekday(date.weekday())
     }
     fn state(&self) -> ItemState {
         self.state
@@ -219,7 +242,7 @@ impl MtcItem for Task {
     /// assert!(item1.ignore_state_eq(&item2));
     /// ```
     fn ignore_state_eq(&self, other: &Task) -> bool {
-        self.body == other.body && self.weekday == other.weekday && self.duration == other.duration
+        self.body == other.body && self.weekdays == other.weekdays && self.duration == other.duration
     }
     fn id(&self) -> usize {
         self.id
