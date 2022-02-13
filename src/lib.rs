@@ -7,9 +7,11 @@ use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 
 mod items;
+
 pub use crate::items::*;
 
 mod remote;
+
 pub use crate::remote::*;
 
 /// An Item for `MtcList`. A struct implementing `MtcItem` is usually defined for a specific time and it has a `ItemState`.
@@ -1144,7 +1146,7 @@ mod tests {
         let mut exp: Vec<Event> = vec![
             Event::new("Event 1".to_string(), today),
             Event::new("Event 2".to_string(), today.succ()),
-            Event::new("Event 3".to_string(), today.pred())
+            Event::new("Event 3".to_string(), today.pred()),
         ];
         let mut id_counter = 0;
         exp.iter_mut().for_each(|x| {

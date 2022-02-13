@@ -375,7 +375,7 @@ impl Display for Task {
 
 impl Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        write!(f, "{}: {} (ID: {})", self.date, self.body, self.id)
+        write!(f, "{} {}: {} (ID: {})", self.date.weekday(), self.date, self.body, self.id)
     }
 }
 
@@ -541,7 +541,7 @@ mod tests {
     #[test]
     fn event_display_works() {
         let event = Event::new("Event 1".to_string(), NaiveDate::from_ymd(2021, 1, 5));
-        assert_eq!(format!("{}", event), "2021-01-05: Event 1 (ID: 0)");
+        assert_eq!(format!("{}", event), "Tue 2021-01-05: Event 1 (ID: 0)");
     }
 
     #[test]
