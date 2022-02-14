@@ -16,7 +16,7 @@ there is probably not the most well written since I didn't bother to do anything
 You can install MTC using the following command. The same command is used for updating MTC as well.
 
 ```
-cargo install --git https://github.com/Windore/mtc.git --features bin
+cargo install --git https://github.com/Windore/mtc.git --features bin --tag v1.1.1
 ```
 
 ## Usage
