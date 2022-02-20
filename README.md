@@ -13,7 +13,7 @@ there is probably not the most well written since I didn't bother to do anything
 
 ## Installation
 
-You can install MTC using the following command. The same command is used for updating MTC as well.
+You can install MTC using the following command. The same command is used for updating MTC as well. When updating remember to change the tag to the newest release. Using an explicit tag is recommended because it makes it clearer which version of the app is being installed so that the same version of the android app can be used.
 
 ```
 cargo install --git https://github.com/Windore/mtc.git --features bin --tag v1.1.1
@@ -164,7 +164,7 @@ mtc do <task id>
 #### Sync
 
 Using sync requires a bit setting up to do. The app expects a config file located in the mtc directory in the user's
-config directory. For example for linux this config file is `~/.config/mtc/sync.json`. The app will not create a config
+config directory. For example in Linux this config file is `~/.config/mtc/sync.json`. The app will not create a config
 file on its own. Example of a config file:
 
 `sync.json`:
@@ -180,7 +180,7 @@ file on its own. Example of a config file:
 Note that the server path needs to exist as the app doesn't create it automatically. Also sync currently only supports
 password based authentication (as that is currently what I need).
 
-First time syncing with a server requires using the following command. It is also required when mtc has had a major update.
+First time syncing with a server requires using the following command. It is also usually required when mtc has had a major update.
 
 ```
 mtc sync overwrite
