@@ -561,23 +561,18 @@ mod tests {
     #[test]
     fn mtc_list_for_date_returns_expected() {
         let mut list = MtcList::new(true);
-        list.add(Todo::new("test0".to_string(), None));
+        list.add(Todo::new("test0".to_string(), Some(Weekday::Mon)));
         list.add(Todo::new("test1".to_string(), Some(Weekday::Tue)));
         list.add(Todo::new("test2".to_string(), Some(Weekday::Wed)));
-        list.add(Todo::new("test3".to_string(), None));
         list.add(Todo::new("test4".to_string(), Some(Weekday::Tue)));
 
         let mut expected = vec![
-            Todo::new("test0".to_string(), None),
             Todo::new("test1".to_string(), Some(Weekday::Tue)),
-            Todo::new("test3".to_string(), None),
             Todo::new("test4".to_string(), Some(Weekday::Tue)),
         ];
 
-        expected[0].set_id(0);
-        expected[1].set_id(1);
-        expected[2].set_id(3);
-        expected[3].set_id(4);
+        expected[0].set_id(1);
+        expected[1].set_id(3);
 
         let result: Vec<Todo> = list
             .items_for_date(NaiveDate::from_ymd(2021, 11, 30))

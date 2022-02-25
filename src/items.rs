@@ -162,7 +162,7 @@ impl MtcItem for Todo {
     fn for_date(&self, date: NaiveDate) -> bool {
         match self.weekday {
             Some(day) => day == date.weekday(),
-            None => true,
+            None => Local::today().weekday()== date.weekday(),
         }
     }
     fn state(&self) -> ItemState {
