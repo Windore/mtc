@@ -148,7 +148,7 @@ pub trait MtcItem {
     /// assert!(item1.ignore_state_eq(&item2));
     /// ```
     fn ignore_state_eq(&self, other: &Self) -> bool;
-    /// Gets the id of the item. 
+    /// Gets the id of the item.
     fn id(&self) -> usize;
     /// Sets the id of the items. `MtcList` usually handles setting the id so in most cases calling this manually is not needed nor recommended.
     fn set_id(&mut self, new_id: usize);
@@ -561,20 +561,20 @@ mod tests {
     #[test]
     fn mtc_list_for_date_returns_expected() {
         let mut list = MtcList::new(true);
-        list.add(Todo::new("test0".to_string(), Some(Weekday::Mon)));
-        list.add(Todo::new("test1".to_string(), Some(Weekday::Tue)));
-        list.add(Todo::new("test2".to_string(), Some(Weekday::Wed)));
-        list.add(Todo::new("test4".to_string(), Some(Weekday::Tue)));
+        list.add(Task::new("test0".to_string(), 10, Some(Weekday::Mon)));
+        list.add(Task::new("test1".to_string(), 10, Some(Weekday::Tue)));
+        list.add(Task::new("test2".to_string(), 10, Some(Weekday::Wed)));
+        list.add(Task::new("test4".to_string(), 10, Some(Weekday::Tue)));
 
         let mut expected = vec![
-            Todo::new("test1".to_string(), Some(Weekday::Tue)),
-            Todo::new("test4".to_string(), Some(Weekday::Tue)),
+            Task::new("test1".to_string(), 10, Some(Weekday::Tue)),
+            Task::new("test4".to_string(), 10, Some(Weekday::Tue)),
         ];
 
         expected[0].set_id(1);
         expected[1].set_id(3);
 
-        let result: Vec<Todo> = list
+        let result: Vec<Task> = list
             .items_for_date(NaiveDate::from_ymd(2021, 11, 30))
             .iter()
             .cloned()
@@ -701,8 +701,7 @@ mod tests {
         let mut list = MtcList::new(false);
         let id = list.add(todo.clone());
 
-        assert_eq!(todo.body(), list.get_by_id(id).unwrap().body());
-        assert_eq!(todo.weekday(), list.get_by_id(id).unwrap().weekday());
+        assert!(todo.ignore_state_eq(list.get_by_id(id).unwrap()));
 
         list.mark_removed(id).unwrap();
 
@@ -1094,24 +1093,6 @@ mod tests {
     }
 
     #[test]
-    fn mtc_list_id_matches() {
-        let mut client = MtcList::new(false);
-
-        client.add(Todo::new("Item 0".to_string(), Some(Weekday::Mon)));
-        client.add(Todo::new("Item 1".to_string(), Some(Weekday::Tue)));
-        client.add(Todo::new("Item 2".to_string(), Some(Weekday::Wed)));
-
-        client.mark_removed(0).unwrap();
-
-        client.sync_self();
-
-        assert_eq!(client.items_for_weekday(Weekday::Wed)[0].id(), 1);
-        let mut item = Todo::new("Item 2".to_string(), Some(Weekday::Wed));
-        item.set_id(1);
-        assert_eq!(*client.items()[1], item);
-    }
-
-    #[test]
     fn mtc_list_doesnt_return_marked_as_removed() {
         let mut client = MtcList::new(false);
 
@@ -1135,8 +1116,14 @@ mod tests {
         client.add(Event::new("Event 1".to_string(), today));
         client.add(Event::new("Event 2".to_string(), today.succ()));
         client.add(Event::new("Event 3".to_string(), today.pred()));
-        client.add(Event::new("Event 4".to_string(), today.pred().pred().pred().pred()));
-        client.add(Event::new("Event 5".to_string(), today.pred().pred().pred().pred().pred().pred()));
+        client.add(Event::new(
+            "Event 4".to_string(),
+            today.pred().pred().pred().pred(),
+        ));
+        client.add(Event::new(
+            "Event 5".to_string(),
+            today.pred().pred().pred().pred().pred().pred(),
+        ));
 
         let mut exp: Vec<Event> = vec![
             Event::new("Event 1".to_string(), today),
@@ -1153,12 +1140,7 @@ mod tests {
         client.remove_expired();
         client.sync_self();
 
-        let result: Vec<Event> = client
-            .items()
-            .iter()
-            .cloned()
-            .cloned()
-            .collect();
+        let result: Vec<Event> = client.items().iter().cloned().cloned().collect();
 
         assert_eq!(exp, result);
     }
