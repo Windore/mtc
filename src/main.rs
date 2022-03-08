@@ -1,4 +1,3 @@
-use std::{fs, fs::File};
 use std::env;
 use std::fmt::Display;
 use std::io::{self, BufReader, BufWriter, Write};
@@ -6,6 +5,7 @@ use std::path::Path;
 use std::str::FromStr;
 use std::thread;
 use std::time::{Duration, Instant};
+use std::{fs, fs::File};
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -20,8 +20,8 @@ pub struct Items {
 mod commands {
     use chrono::prelude::*;
 
-    use readers::read_id;
     use crate::commands::set_cmd::set;
+    use readers::read_id;
 
     use super::*;
 
@@ -76,8 +76,8 @@ mod commands {
     }
 
     fn do_task<'a, T>(items: &Items, mut args: T) -> Result<(), String>
-        where
-            T: Iterator<Item=&'a str>,
+    where
+        T: Iterator<Item = &'a str>,
     {
         // This will be soon changed completely so it is not yet refactored to the new result based
         // error handling.
@@ -112,8 +112,8 @@ mod commands {
     }
 
     fn remove<'a, T>(items: &mut Items, mut args: T) -> Result<(), String>
-        where
-            T: Iterator<Item=&'a str>,
+    where
+        T: Iterator<Item = &'a str>,
     {
         match args.next() {
             Some("todo") => {
@@ -134,14 +134,13 @@ mod commands {
         Ok(())
     }
 
-
     mod add_cmd {
-        use super::*;
         use super::readers::*;
+        use super::*;
 
         pub fn add<'a, T>(items: &mut Items, mut args: T) -> Result<(), String>
-            where
-                T: Iterator<Item=&'a str>,
+        where
+            T: Iterator<Item = &'a str>,
         {
             match args.next() {
                 Some("todo") => add_todo(items, args)?,
@@ -154,8 +153,8 @@ mod commands {
         }
 
         fn add_todo<'a, T>(items: &mut Items, mut args: T) -> Result<(), String>
-            where
-                T: Iterator<Item=&'a str>,
+        where
+            T: Iterator<Item = &'a str>,
         {
             let body = read_body(args.next())?;
             let weekday = read_weekday(args.next())?;
@@ -164,8 +163,8 @@ mod commands {
         }
 
         fn add_task<'a, T>(items: &mut Items, mut args: T) -> Result<(), String>
-            where
-                T: Iterator<Item=&'a str>,
+        where
+            T: Iterator<Item = &'a str>,
         {
             let body = read_body(args.next())?;
             let duration = read_duration(args.next())?;
@@ -185,8 +184,8 @@ mod commands {
         }
 
         fn add_event<'a, T>(items: &mut Items, mut args: T) -> Result<(), String>
-            where
-                T: Iterator<Item=&'a str>,
+        where
+            T: Iterator<Item = &'a str>,
         {
             let body = read_body(args.next())?;
             let date = read_date(args.next())?;
@@ -196,12 +195,12 @@ mod commands {
     }
 
     mod set_cmd {
-        use super::*;
         use super::readers::*;
+        use super::*;
 
         pub fn set<'a, T>(items: &mut Items, mut args: T) -> Result<(), String>
-            where
-                T: Iterator<Item=&'a str>,
+        where
+            T: Iterator<Item = &'a str>,
         {
             match args.next() {
                 Some("todo") => set_todo(items, args)?,
@@ -214,8 +213,8 @@ mod commands {
         }
 
         fn set_todo<'a, T>(items: &mut Items, mut args: T) -> Result<(), String>
-            where
-                T: Iterator<Item=&'a str>,
+        where
+            T: Iterator<Item = &'a str>,
         {
             let id = read_id(args.next())?;
             let old = items.todos.get_by_id(id);
@@ -226,28 +225,30 @@ mod commands {
 
             // This is not optimal but the slight performance overhead is not significant.
             let mut body = old.body().clone();
-            let mut weekday = old.weekday();
+            let date = old.date();
+            let new: Todo;
 
             match args.next() {
                 Some("body") => {
                     body = read_body(args.next())?;
+                    new = Todo::new_dated(body, date);
                 }
                 Some("weekday") => {
-                    weekday = read_weekday(args.next())?;
+                    let weekday = read_weekday(args.next())?;
+                    new = Todo::new(body, weekday);
                 }
                 Some(_) => return Err("Unknown property.".to_string()),
-                None => return Err("Missing property argument.".to_string())
+                None => return Err("Missing property argument.".to_string()),
             };
 
-            let new = Todo::new(body, weekday);
             items.todos.mark_removed(id).unwrap();
             items.todos.add(new);
             Ok(())
         }
 
         fn set_task<'a, T>(items: &mut Items, mut args: T) -> Result<(), String>
-            where
-                T: Iterator<Item=&'a str>,
+        where
+            T: Iterator<Item = &'a str>,
         {
             let id = read_id(args.next())?;
             let old = items.tasks.get_by_id(id);
@@ -279,7 +280,7 @@ mod commands {
                     }
                 }
                 Some(_) => return Err("Unknown property.".to_string()),
-                None => return Err("Missing property argument.".to_string())
+                None => return Err("Missing property argument.".to_string()),
             };
 
             let mut new = Task::new(body, duration, None);
@@ -290,8 +291,8 @@ mod commands {
         }
 
         fn set_event<'a, T>(items: &mut Items, mut args: T) -> Result<(), String>
-            where
-                T: Iterator<Item=&'a str>,
+        where
+            T: Iterator<Item = &'a str>,
         {
             let id = read_id(args.next())?;
             let old = items.events.get_by_id(id);
@@ -312,7 +313,7 @@ mod commands {
                     date = read_date(args.next())?;
                 }
                 Some(_) => return Err("Unknown property.".to_string()),
-                None => return Err("Missing property argument.".to_string())
+                None => return Err("Missing property argument.".to_string()),
             };
 
             let new = Event::new(body, date);
@@ -325,16 +326,15 @@ mod commands {
     mod readers {
         use super::*;
 
-        pub fn read_id(next: Option<&str>) -> Result<usize, String>
-        {
+        pub fn read_id(next: Option<&str>) -> Result<usize, String> {
             if let Some(s) = next {
-                return usize::from_str(s).map_err(|_| "Invalid input. Input a valid ID.".to_string());
+                return usize::from_str(s)
+                    .map_err(|_| "Invalid input. Input a valid ID.".to_string());
             }
             Err("No ID specified.".to_string())
         }
 
-        pub fn read_weekday(next: Option<&str>) -> Result<Option<Weekday>, String>
-        {
+        pub fn read_weekday(next: Option<&str>) -> Result<Option<Weekday>, String> {
             if let Some(inp) = next {
                 match Weekday::from_str(inp) {
                     Ok(day) => Ok(Some(day)),
@@ -345,8 +345,7 @@ mod commands {
             }
         }
 
-        pub fn read_duration(next: Option<&str>) -> Result<u32, String>
-        {
+        pub fn read_duration(next: Option<&str>) -> Result<u32, String> {
             if let Some(inp) = next {
                 match u32::from_str(inp) {
                     Ok(dur) => Ok(dur),
@@ -369,7 +368,7 @@ mod commands {
             if let Some(inp) = next {
                 match NaiveDate::from_str(inp) {
                     Ok(date) => Ok(date),
-                    Err(_) => Err(format!("Cannot parse '{}' to a date.", inp))
+                    Err(_) => Err(format!("Cannot parse '{}' to a date.", inp)),
                 }
             } else {
                 Err("Missing event date argument.".to_string())
@@ -391,8 +390,8 @@ mod commands {
         ];
 
         pub fn show<'a, T>(items: &Items, mut args: T) -> Result<(), String>
-            where
-                T: Iterator<Item=&'a str>,
+        where
+            T: Iterator<Item = &'a str>,
         {
             match args.next() {
                 Some("todos") => show_all_todos(items),
@@ -547,8 +546,8 @@ mod commands {
         }
 
         pub fn sync<'a, T>(items: &mut Items, mut args: T) -> Result<(), String>
-            where
-                T: Iterator<Item=&'a str>,
+        where
+            T: Iterator<Item = &'a str>,
         {
             // Only events can expire
             items.events.remove_expired();
@@ -621,10 +620,12 @@ mod commands {
                     return Err("No config file found. Please create one.".to_string());
                 }
 
-                let file = File::open(path).map_err(|e| format!("Failed to open config file.\nReason: {}", e))?;
+                let file = File::open(path)
+                    .map_err(|e| format!("Failed to open config file.\nReason: {}", e))?;
                 let reader = BufReader::new(file);
 
-                serde_json::from_reader(reader).map_err(|e| format!("Failed to parse config file.\nReason: {}", e))
+                serde_json::from_reader(reader)
+                    .map_err(|e| format!("Failed to parse config file.\nReason: {}", e))
             } else {
                 Err("Cannot locate a config directory. Your os may not be supported.".to_string())
             }

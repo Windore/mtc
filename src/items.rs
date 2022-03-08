@@ -6,7 +6,7 @@ use std::fmt::Display;
 /// A short-term task that should be done on a optionally given weekday.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Todo {
-    weekday: Option<Weekday>,
+    date: NaiveDate,
     body: String,
     state: ItemState,
     id: usize,
@@ -31,11 +31,35 @@ pub struct Event {
     id: usize,
 }
 
+fn get_date_from_wd(weekday: Option<Weekday>) -> NaiveDate {
+    let mut day = Local::today().naive_local();
+
+    match weekday {
+        None => day,
+        Some(wd) => {
+            while day.weekday() != wd {
+                day = day.succ();
+            }
+            day
+        }
+    }
+}
+
 impl Todo {
     /// Creates a new `Todo` with a given body and optionally a weekday.
     pub fn new(body: String, weekday: Option<Weekday>) -> Todo {
         Todo {
-            weekday,
+            date: get_date_from_wd(weekday),
+            body,
+            state: ItemState::Neutral,
+            id: 0,
+        }
+    }
+
+    /// Creates a new `Todo` with a given body and explicitly set date
+    pub fn new_dated(body: String, date: NaiveDate) -> Todo {
+        Todo {
+            date,
             body,
             state: ItemState::Neutral,
             id: 0,
@@ -48,13 +72,13 @@ impl Todo {
     }
 
     /// Returns the optionally specified weekday of the `Todo`.
-    pub fn weekday(&self) -> Option<Weekday> {
-        self.weekday
+    pub fn date(&self) -> NaiveDate {
+        self.date
     }
 
     /// Sets the optional weekday of the `Todo`.
     pub fn set_weekday(&mut self, new_weekday: Option<Weekday>) {
-        self.weekday = new_weekday;
+        self.date = get_date_from_wd(new_weekday);
     }
 }
 
@@ -145,24 +169,12 @@ impl Event {
 }
 
 impl MtcItem for Todo {
-    /// Returns true if the `Todo` is for a given date.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use chrono::prelude::*;
-    /// use mtc::{Todo, MtcItem};
-    ///
-    /// let item = Todo::new("Do task A".to_string(), Some(Weekday::Mon));
-    ///
-    /// // 2021.12.6 was a monday.
-    /// assert!(item.for_date(NaiveDate::from_ymd(2021, 12, 6)));
-    /// assert!(!item.for_date(NaiveDate::from_ymd(2021, 12, 5)));
-    /// ```
+    /// Returns true if the `Todo` is for a given date. A `Todo` is for a given date if the date is today, and today is after the `Todo`s date.
     fn for_date(&self, date: NaiveDate) -> bool {
-        match self.weekday {
-            Some(day) => day == date.weekday(),
-            None => Local::today().weekday()== date.weekday(),
+        if self.date < date {
+            date == Local::today().naive_local()
+        } else {
+            date.weekday() == self.date.weekday()
         }
     }
     fn state(&self) -> ItemState {
@@ -171,7 +183,7 @@ impl MtcItem for Todo {
     fn set_state(&mut self, new_state: ItemState) {
         self.state = new_state;
     }
-    /// Returns true if self and other are equal excluding the `ItemState` of both self and other.
+    /// Returns true if self and other are equal excluding the `ItemState` and id of both self and other.
     ///
     /// # Example
     ///
@@ -188,7 +200,7 @@ impl MtcItem for Todo {
     /// assert!(item1.ignore_state_eq(&item2));
     /// ```
     fn ignore_state_eq(&self, other: &Todo) -> bool {
-        self.body == other.body && self.weekday == other.weekday
+        self.body == other.body && self.date == other.date
     }
     fn id(&self) -> usize {
         self.id
@@ -242,7 +254,9 @@ impl MtcItem for Task {
     /// assert!(item1.ignore_state_eq(&item2));
     /// ```
     fn ignore_state_eq(&self, other: &Task) -> bool {
-        self.body == other.body && self.weekdays == other.weekdays && self.duration == other.duration
+        self.body == other.body
+            && self.weekdays == other.weekdays
+            && self.duration == other.duration
     }
     fn id(&self) -> usize {
         self.id
@@ -375,7 +389,14 @@ impl Display for Task {
 
 impl Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        write!(f, "{} {}: {} (ID: {})", self.date, self.date.weekday(), self.body, self.id)
+        write!(
+            f,
+            "{} {}: {} (ID: {})",
+            self.date,
+            self.date.weekday(),
+            self.body,
+            self.id
+        )
     }
 }
 
@@ -384,19 +405,55 @@ mod tests {
     use super::*;
 
     #[test]
-    fn todo_item_for_date_returns_true() {
-        let date = NaiveDate::from_ymd(2021, 12, 6);
-        let ti = Todo::new("test".to_string(), Some(Weekday::Mon));
+    fn todo_sets_correct_date_from_wd() {
+        let date = Local::today().naive_local();
+        let weekday = date.succ().weekday();
+        let todo = Todo::new("".to_string(), Some(weekday));
+
+        assert_eq!(date.succ(), todo.date);
+    }
+
+    #[test]
+    fn todo_doesnt_set_incorrect() {
+        let date = Local::today().naive_local();
+        let weekday = date.succ().succ().weekday();
+        let todo = Todo::new("".to_string(), Some(weekday));
+
+        assert_ne!(date.succ(), todo.date);
+    }
+
+    #[test]
+    fn todo_for_date_returns_true() {
+        let date = Local::today().naive_local();
+        let ti = Todo::new("test".to_string(), Some(date.weekday()));
 
         assert!(ti.for_date(date));
     }
 
     #[test]
-    fn todo_item_for_date_returns_false() {
-        let date = NaiveDate::from_ymd(2021, 12, 6);
-        let ti = Todo::new("test".to_string(), Some(Weekday::Tue));
+    fn todo_for_date_returns_false() {
+        let date = Local::today().naive_local();
+        let ti = Todo::new("test".to_string(), Some(date.weekday().succ()));
 
         assert!(!ti.for_date(date));
+    }
+
+    #[test]
+    fn todo_for_weekday_returns_true() {
+        let todo = Todo::new("".to_string(), Some(Weekday::Mon));
+        assert!(todo.for_weekday(Weekday::Mon));
+
+        let weekday = Local::today().weekday();
+        let todo = Todo::new("".to_string(), Some(weekday));
+        assert!(todo.for_weekday(weekday));
+
+        let weekday = Local::today().weekday().succ();
+        let todo = Todo::new("".to_string(), Some(weekday));
+        assert!(todo.for_weekday(weekday));
+
+        let weekday = Local::today().weekday().pred();
+        let todo = Todo::new("".to_string(), Some(weekday));
+        assert!(todo.for_weekday(weekday));
     }
 
     #[test]
@@ -432,7 +489,7 @@ mod tests {
     }
 
     #[test]
-    fn todo_item_ignore_state_eq_returns_true() {
+    fn todo_ignore_state_eq_returns_true() {
         let mut item1 = Todo::new("Task 1".to_string(), None);
         item1.set_state(ItemState::New);
 
@@ -444,7 +501,7 @@ mod tests {
     }
 
     #[test]
-    fn todo_item_ignore_state_eq_returns_false() {
+    fn todo_ignore_state_eq_returns_false() {
         let mut item1 = Todo::new("Task 1".to_string(), Some(Weekday::Fri));
         item1.set_state(ItemState::New);
 

@@ -29,7 +29,8 @@ start the time with "AM" or "PM" and the order will be correct as well.
 ### Todos
 
 Todos are quite self-explanatory. They are used for simple one time tasks that don't necessarily have to be done at a
-specific time. You can however specify a weekday for a todo, but nothing more specific than that.
+specific time. You can however specify a weekday for a todo, but nothing more specific than that. If a todo is not done
+at the specified weekday, it will show for all other weekdays after that.
 
 ### Tasks
 
