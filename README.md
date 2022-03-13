@@ -15,8 +15,10 @@ there is probably not the most well written since I didn't bother to do anything
 
 You can install MTC using the following command. The same command is used for updating MTC as well. When updating remember to change the tag to the newest release. Using an explicit tag is recommended because it makes it clearer which version of the app is being installed so that the same version of the android app can be used.
 
+**If you are updating from v1.1.1 to 1.3.0, remove all todos before updating as there are breaking changes with todos.**
+
 ```
-cargo install --git https://github.com/Windore/mtc.git --features bin --tag v1.1.1
+cargo install --git https://github.com/Windore/mtc.git --features bin --tag v1.3.0
 ```
 
 ## Usage
