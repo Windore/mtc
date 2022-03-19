@@ -320,7 +320,7 @@ impl MtcItem for Event {
     }
     fn expired(&self) -> bool {
         let today = Local::today().naive_local();
-        return self.date.signed_duration_since(today).num_days() < -3;
+        self.date.signed_duration_since(today).num_days() < -3
     }
 }
 
